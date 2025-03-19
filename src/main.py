@@ -10,8 +10,11 @@ def home():
 
 
 # 모임일기 생성 API
-@app.post("/diaries")
-async def create_diary_api(data: dict):
+@app.post("/groups/{groupId}/diaries")
+async def create_diary_api(groupId: int, data: dict):
+    group_data = data.get("group_data", {})  # 모임 정보
     transactions = data.get("card_transactions", [])  # 카드 결제 데이터
-    diary_entry = await create_diary(transactions)
-    return {"diary": diary_entry}
+
+    diary_entry = await create_diary(group_data, transactions)
+    
+    return {"groupId": groupId, "diary": diary_entry}

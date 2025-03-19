@@ -32,13 +32,22 @@ BASE_PROMPT = """
 다음은 모임에서 사용한 결제 내역이야. 이를 참고해서 위 규칙을 적용한 모임 일기를 작성해줘:
 """
 
-async def create_diary(transactions):
+
+async def create_diary(group_data, transactions):
     if not transactions:
         return "결제 내역이 없습니다."
 
-    # 카드 결제 데이터 추가하여 프롬프트 생성
     prompt = BASE_PROMPT + "\n\n"
 
+    # 모임 데이터 추가
+    prompt += f"모임 이름: {group_data.get('appoint_name', '미정')}\n"
+    prompt += f"모임 날짜: {group_data.get('date', '미정')}\n"
+    prompt += f"모임 장소: {group_data.get('location', '미정')}\n"
+    prompt += f"참석 인원: {group_data.get('actual_attendees', 0)}명 / 예상 인원: {group_data.get('expected_attendees', 0)}명\n"
+    prompt += f"참석자: {', '.join(group_data.get('attendees', []))}\n"
+    prompt += f"불참자: {', '.join(set(group_data.get('group_member', [])) - set(group_data.get('attendees', [])))}\n\n"
+
+    # 카드 결제 데이터
     for tx in transactions:
         prompt += f"- {tx['merchant_name']} ({tx['merchant_category']})에서 {tx['amount']}원 결제 ({tx['transaction_date']}), 위치: {tx.get('location', '미정')}\n"
 
