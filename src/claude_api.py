@@ -1,14 +1,14 @@
 import os
-import requests
+import anthropic
 from dotenv import load_dotenv
 
-load_dotenv()  # 환경 변수 로드
+load_dotenv(dotenv_path=".env")  # 환경 변수 로드
 
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
-CLAUDE_API_URL = "https://api.anthropic.com/v1/complete"  # Claude 모델에 프롬프트를 전달하고 응답을 받는 역할
+client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
+CLAUDE_API_URL = "https://api.anthropic.com/v1/complete"
 
-
-# ✅ 기본 프롬프트 템플릿 설정
+# 기본 프롬프트 템플릿 설정
 BASE_PROMPT = """
 너는 이 모임에 참여한 모임원 중 한명이야.
 이제부터 실제 사람이 쓴 것처럼 자연스러우면서 재미있고 귀여운 모임 일기를 써야해.
@@ -26,32 +26,30 @@ BASE_PROMPT = """
 10. 친한 친구처럼 성을 빼고 이름만 사용할 것.
 11. 단락을 나누고, 이모티콘을 적절히 사용하여 감정을 표현할 것.
 12. 미참석 모임원에 대한 언급할 것.
-13. 마지막에 오늘의 한줄 요약을 추가할 것.
-13. 가장 하단에 해시태그(#)로 핵심 키워드를 추가할 것.
+13. 마지막에 오늘 모임의 한줄 요약을 추가할 것.
+14. 가장 하단에 해시태그(#)로 핵심 키워드를 추가할 것.
 
 다음은 모임에서 사용한 결제 내역이야. 이를 참고해서 위 규칙을 적용한 모임 일기를 작성해줘:
 """
 
-
-# 모임 일기 생성 함수
-async def generate_diary(transactions):
+async def create_diary(transactions):
     if not transactions:
         return "결제 내역이 없습니다."
 
-    # 결제 데이터를 기반으로 맞춤형 프롬프트 생성
+    # 카드 결제 데이터 추가하여 프롬프트 생성
     prompt = BASE_PROMPT + "\n\n"
+
     for tx in transactions:
-        prompt += f"- {tx['merchant_name']}에서 {tx['amount']}원 결제 ({tx['transaction_date']})\n"
-    prompt += "\n이 데이터를 기반으로 재미있는 모임 일기를 생성해줘!"
+        prompt += f"- {tx['merchant_name']} ({tx['merchant_category']})에서 {tx['amount']}원 결제 ({tx['transaction_date']}), 위치: {tx.get('location', '미정')}\n"
+
+    prompt += "\n이 결제 내역 데이터를 기반으로 재미있는 모임 일기를 생성해줘!"
 
     # Claude API 호출
-    response = requests.post(
-        CLAUDE_API_URL,
-        headers={
-            "Authorization": f"Bearer {CLAUDE_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={"model": "claude-2", "prompt": prompt, "max_tokens": 1500},
+    response = client.messages.create(
+        model="claude-3-opus-20240229",
+        max_tokens=1500,
+        messages=[{"role": "user", "content": prompt}],
     )
 
-    return response.json().get("completion", "일기 생성 실패")
+    print("🟢 Claude API 응답:", response)
+    return response.content
