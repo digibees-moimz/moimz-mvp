@@ -1,7 +1,11 @@
 from fastapi import FastAPI
 from src.claude_api import create_diary
+from src.face_api import router as face_router  # 얼굴 인식 API 추가
 
 app = FastAPI()
+
+# API 라우터 등록
+app.include_router(face_router)  # 얼굴 인식 API
 
 
 @app.get("/")
@@ -16,5 +20,5 @@ async def create_diary_api(groupId: int, data: dict):
     transactions = data.get("card_transactions", [])  # 카드 결제 데이터
 
     diary_entry = await create_diary(group_data, transactions)
-    
+
     return {"groupId": groupId, "diary": diary_entry}
