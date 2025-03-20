@@ -7,9 +7,11 @@ load_dotenv(dotenv_path=".env")  # 환경 변수 로드
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
+
 def load_prompt():
     with open("src/prompt_template.txt", "r", encoding="utf-8") as f:
         return f.read()
+
 
 # 프롬프트 템플릿 로드
 BASE_PROMPT = load_prompt()
@@ -37,8 +39,9 @@ async def create_diary(group_data, transactions):
 
     # Claude API 호출
     response = client.messages.create(
-        model="claude-3-opus-20240229",
+        model="claude-3-7-sonnet-20250219",
         max_tokens=1500,
+        # temperature=0.7,
         messages=[{"role": "user", "content": prompt}],
     )
 
