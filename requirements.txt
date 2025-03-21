@@ -7,3 +7,4 @@ dlib
 numpy
 opencv-python
 pillow
+python-multipart
