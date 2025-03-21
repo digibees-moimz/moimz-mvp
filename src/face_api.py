@@ -11,6 +11,25 @@ router = APIRouter()
 face_db = {}
 
 
+# 서버 시작 시, 저장된 얼굴 벡터 파일들을 불러오는 로직
+def load_faces_from_files():
+    for file in os.listdir():
+        # "face_00.pkl" 형식의 파일 찾기
+        if file.startswith("face_") and file.endswith(".pkl"):
+            try:
+                # 파일명에서 user_id 추출
+                user_id = int(file.split("_")[1].split(".")[0])
+                with open(file, "rb") as f:
+                    face_db[user_id] = pickle.load(f)  # 얼굴 벡터 복원
+                print(f"✅ {user_id}번 사용자의 얼굴 데이터를 불러왔습니다.")
+            except Exception as e:
+                print(f"⚠️ {file} 로딩 실패: {e}")
+
+
+# 모듈이 처음 import 될 때 자동 실행
+load_faces_from_files()
+
+
 # 얼굴 등록 API (파일 업로드 필수)
 @router.post("/register_face/{user_id}")
 async def register_face(user_id: int, file: UploadFile = File(...)):
@@ -42,20 +61,42 @@ async def register_face(user_id: int, file: UploadFile = File(...)):
     }
 
 
-# 서버 시작 시, 저장된 얼굴 벡터 파일들을 불러오는 로직
-def load_faces_from_files():
-    for file in os.listdir():
-        # "face_00.pkl" 형식의 파일 찾기
-        if file.startswith("face_") and file.endswith(".pkl"):
-            try:
-                # 파일명에서 user_id 추출
-                user_id = int(file.split("_")[1].split(".")[0])
-                with open(file, "rb") as f:
-                    face_db[user_id] = pickle.load(f)  # 얼굴 벡터 복원
-                print(f"✅ {user_id}번 사용자의 얼굴 데이터를 불러왔습니다.")
-            except Exception as e:
-                print(f"⚠️ {file} 로딩 실패: {e}")
+# 출석체크 API
+@router.post("/check_attendance")
+async def check_attendance(file: UploadFile = File(...)):
+    image_bytes = await file.read()
+    image_np = np.frombuffer(image_bytes, np.uint8)
+    image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
 
+    # 얼굴 감지
+    unknown_encodings = face_recognition.face_encodings(image)
+    if not unknown_encodings:
+        return {"message": "사진에서 얼굴을 찾을 수 없습니다."}
 
-# 모듈이 처음 import 될 때 자동 실행
-load_faces_from_files()
+    present_users = set()
+
+    for unknown_encoding in unknown_encodings:
+        closest_user = None
+        min_distance = 0.45  # 거리 기준 (0.4~0.6이 보통)
+
+        # 등록된 얼굴 데이터와 비교
+        for user_id, known_encoding in face_db.items():
+            distance = face_recognition.face_distance(
+                [known_encoding], unknown_encoding
+            )[0]
+
+            # 얼굴 벡터 간 유사도 검사
+            if distance < min_distance:
+                min_distance = distance  # 벡터 최소 거리 갱신
+                closest_user = user_id
+
+        if closest_user is not None:
+            present_users.add(closest_user)
+
+    if present_users:
+        return {
+            "출석자 ID 명단": list(present_users),
+            "출석 인원 수": len(present_users),
+        }
+    else:
+        return {"message": "출석한 사람 없음"}
