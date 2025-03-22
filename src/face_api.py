@@ -8,17 +8,13 @@ import cv2
 
 router = APIRouter()
 
-# 얼굴 데이터 저장 - 임시
-face_db = {}
 
-# 얼굴 데이터 저장 폴더 경로 설정
-FACE_DATA_DIR = os.path.join("src", "face_data")
-
-# 얼굴 벡터 파일 저장 디렉토리 생성 (없으면 자동 생성)
-os.makedirs(FACE_DATA_DIR, exist_ok=True)
+face_db = {}  # 얼굴 데이터 저장 - 임시
+FACE_DATA_DIR = os.path.join("src", "face_data")  # 얼굴 데이터 저장 폴더 경로 설정
+os.makedirs(FACE_DATA_DIR, exist_ok=True)  # 얼굴 벡터 파일 저장 디렉토리 생성
 
 
-# 서버 시작 시, 저장된 얼굴 벡터 파일들을 불러오는 로직
+# 저장된 얼굴 벡터 파일들을 불러오는 로직
 def load_faces_from_files():
     for file in os.listdir(FACE_DATA_DIR):
         # "face_00.pkl" 형식의 파일 찾기
@@ -33,11 +29,11 @@ def load_faces_from_files():
                 print(f"⚠️ {file} 로딩 실패: {e}")
 
 
-# 모듈이 처음 import 될 때 자동 실행
+# 서버 시작 시, 저장된 벡터 파일들을 불러옴
 load_faces_from_files()
 
 
-# 얼굴 등록 API (파일 업로드 필수)
+# 얼굴 등록 API
 @router.post("/register_faces/{user_id}")
 async def register_faces(
     user_id: int, files: List[UploadFile] = File(...)
@@ -104,15 +100,16 @@ async def check_attendance(file: UploadFile = File(...)):
         closest_user = None
         min_distance = 0.45  # 거리 기준 (0.4~0.6이 보통)
 
-        # 등록된 얼굴 데이터와 비교
-        for user_id, known_encoding in face_db.items():
-            distance = face_recognition.face_distance(
-                [known_encoding], unknown_encoding
-            )[0]
+        # 등록된 얼굴 데이터 리스트와 비교
+        for user_id, known_encodings in face_db.items():
+            distances = face_recognition.face_distance(known_encodings, unknown_encoding)
+            if len(distances) == 0:
+                continue
+            min_dist = float(np.min(distances))
 
             # 얼굴 벡터 간 유사도 검사
-            if distance < min_distance:
-                min_distance = distance  # 벡터 최소 거리 갱신
+            if min_dist < min_distance:
+                min_distance = min_dist  # 벡터 최소 거리 갱신
                 closest_user = user_id
 
         if closest_user is not None:
