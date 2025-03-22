@@ -10,16 +10,22 @@ router = APIRouter()
 # 얼굴 데이터 저장 - 임시
 face_db = {}
 
+# 얼굴 데이터 저장 폴더 경로 설정
+FACE_DATA_DIR = os.path.join("src", "face_data")
+
+# 얼굴 벡터 파일 저장 디렉토리 생성 (없으면 자동 생성)
+os.makedirs(FACE_DATA_DIR, exist_ok=True)
+
 
 # 서버 시작 시, 저장된 얼굴 벡터 파일들을 불러오는 로직
 def load_faces_from_files():
-    for file in os.listdir():
+    for file in os.listdir(FACE_DATA_DIR):
         # "face_00.pkl" 형식의 파일 찾기
         if file.startswith("face_") and file.endswith(".pkl"):
             try:
                 # 파일명에서 user_id 추출
                 user_id = int(file.split("_")[1].split(".")[0])
-                with open(file, "rb") as f:
+                with open(os.path.join(FACE_DATA_DIR, file), "rb") as f:
                     face_db[user_id] = pickle.load(f)  # 얼굴 벡터 복원
                 print(f"✅ {user_id}번 사용자의 얼굴 데이터를 불러왔습니다.")
             except Exception as e:
@@ -52,7 +58,8 @@ async def register_face(user_id: int, file: UploadFile = File(...)):
 
     # 얼굴 벡터를 파일로 저장 (나중에 서버를 재시작해도 얼굴 데이터가 유지됨) - 임시
     face_db[user_id] = new_encoding
-    with open(f"face_{user_id}.pkl", "wb") as f:
+    save_path = os.path.join(FACE_DATA_DIR, f"face_{user_id}.pkl")
+    with open(save_path, "wb") as f:
         pickle.dump(new_encoding, f)
 
     return {
