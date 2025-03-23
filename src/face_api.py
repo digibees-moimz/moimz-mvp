@@ -94,7 +94,8 @@ async def check_attendance(file: UploadFile = File(...)):
     if not unknown_encodings:
         return {"message": "사진에서 얼굴을 찾을 수 없습니다."}
 
-    present_users = set()
+    already_marked = set()  # 중복 방지용 집합
+    attendance_results = []
 
     for unknown_encoding in unknown_encodings:
         closest_user = None
@@ -102,7 +103,12 @@ async def check_attendance(file: UploadFile = File(...)):
 
         # 등록된 얼굴 데이터 리스트와 비교
         for user_id, known_encodings in face_db.items():
-            distances = face_recognition.face_distance(known_encodings, unknown_encoding)
+            if user_id in already_marked:
+                continue  # 이미 출석된 유저는 스킵
+
+            distances = face_recognition.face_distance(
+                known_encodings, unknown_encoding
+            )
             if len(distances) == 0:
                 continue
             min_dist = float(np.min(distances))
@@ -113,12 +119,15 @@ async def check_attendance(file: UploadFile = File(...)):
                 closest_user = user_id
 
         if closest_user is not None:
-            present_users.add(closest_user)
+            already_marked.add(closest_user)
+            attendance_results.append(
+                {"user_id": closest_user, "distance": round(min_distance, 4)}
+            )
 
-    if present_users:
+    if attendance_results:
         return {
-            "출석자 ID 명단": list(present_users),
-            "출석 인원 수": len(present_users),
+            "출석자 ID 명단": list(attendance_results),
+            "출석 인원 수": len(attendance_results),
         }
     else:
         return {"message": "출석한 사람 없음"}
