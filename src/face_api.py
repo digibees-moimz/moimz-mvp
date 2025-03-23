@@ -100,12 +100,12 @@ async def check_attendance(file: UploadFile = File(...)):
     for unknown_id, unknown_encoding in enumerate(unknown_encodings):
         for user_id, known_encodings in face_db.items():
             for known_encoding in known_encodings:
-                distance = face_recognition.face_distance([known_encoding], unknown_encoding)[0]
-                all_matches.append({
-                    "unknown_id": unknown_id,
-                    "user_id": user_id,
-                    "distance": distance
-                })
+                distance = face_recognition.face_distance(
+                    [known_encoding], unknown_encoding
+                )[0]
+                all_matches.append(
+                    {"unknown_id": unknown_id, "user_id": user_id, "distance": distance}
+                )
 
     # 거리 기준 정렬 (유사한 조합부터 차례대로 검사하기 위함)
     all_matches.sort(key=lambda x: x["distance"])
@@ -115,11 +115,12 @@ async def check_attendance(file: UploadFile = File(...)):
     attendance_results = []  # 최종 출석 결과 저장
 
     for match in all_matches:
+        if match["distance"] > 0.45:
+            break  # 정렬되었기 때문에 유사도가 기준값을 넘어가면 더이상 확인할 필요 없음
+
         if match["user_id"] in matched_users:
             continue
         if match["unknown_id"] in matched_unknowns:
-            continue
-        if match["distance"] > 0.45:
             continue
 
         matched_users.add(match["user_id"])
