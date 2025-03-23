@@ -89,40 +89,44 @@ async def check_attendance(file: UploadFile = File(...)):
     image_np = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
 
-    # 얼굴 감지
+    # 단체 사진에서 얼굴 인코딩 추출
     unknown_encodings = face_recognition.face_encodings(image)
     if not unknown_encodings:
         return {"message": "사진에서 얼굴을 찾을 수 없습니다."}
 
-    already_marked = set()  # 중복 방지용 집합
-    attendance_results = []
+    all_matches = []
 
-    for unknown_encoding in unknown_encodings:
-        closest_user = None
-        min_distance = 0.45  # 거리 기준 (0.4~0.6이 보통)
-
-        # 등록된 얼굴 데이터 리스트와 비교
+    # 모든 (unknown 얼굴, 등록된 얼굴) 조합 거리 계산
+    for unknown_id, unknown_encoding in enumerate(unknown_encodings):
         for user_id, known_encodings in face_db.items():
-            if user_id in already_marked:
-                continue  # 이미 출석된 유저는 스킵
+            for known_encoding in known_encodings:
+                distance = face_recognition.face_distance([known_encoding], unknown_encoding)[0]
+                all_matches.append({
+                    "unknown_id": unknown_id,
+                    "user_id": user_id,
+                    "distance": distance
+                })
 
-            distances = face_recognition.face_distance(
-                known_encodings, unknown_encoding
-            )
-            if len(distances) == 0:
-                continue
-            min_dist = float(np.min(distances))
+    # 거리 기준 정렬 (유사한 조합부터 차례대로 검사하기 위함)
+    all_matches.sort(key=lambda x: x["distance"])
 
-            # 얼굴 벡터 간 유사도 검사
-            if min_dist < min_distance:
-                min_distance = min_dist  # 벡터 최소 거리 갱신
-                closest_user = user_id
+    matched_users = set()  # 출석된 user_id들 저장 (중복 방지용)
+    matched_unknowns = set()  # 단체 사진 속 얼굴들 중 이미 매칭된 얼굴
+    attendance_results = []  # 최종 출석 결과 저장
 
-        if closest_user is not None:
-            already_marked.add(closest_user)
-            attendance_results.append(
-                {"user_id": closest_user, "distance": round(min_distance, 4)}
-            )
+    for match in all_matches:
+        if match["user_id"] in matched_users:
+            continue
+        if match["unknown_id"] in matched_unknowns:
+            continue
+        if match["distance"] > 0.45:
+            continue
+
+        matched_users.add(match["user_id"])
+        matched_unknowns.add(match["unknown_id"])
+        attendance_results.append(
+            {"user_id": match["user_id"], "distance": match["distance"]}
+        )
 
     if attendance_results:
         return {
