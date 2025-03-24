@@ -38,7 +38,9 @@ load_faces_from_files()
 async def register_faces(
     user_id: int, files: List[UploadFile] = File(...)
 ):  # 다중 이미지 업로드 받기
+
     encodings_list = []
+    skipped_files = []  # 얼굴이 2개 이상인 파일 저장용
 
     for file in files:
         image_bytes = await file.read()  # 파일을 바이트로 읽기
@@ -47,12 +49,35 @@ async def register_faces(
 
         # 얼굴 인식 및 특징 벡터 추출
         face_encodings = face_recognition.face_encodings(image)
+
         if not face_encodings:
-            continue
+            skipped_files.append(
+                {
+                    "filename": file.filename,
+                    "detected_faces": len(face_encodings),
+                    "reason": "해당 사진에서 얼굴을 찾을 수 없음",
+                }
+            )
+            continue  # 감지된 얼굴으면 건너뜀
+
+        if len(face_encodings) > 1:
+            skipped_files.append(
+                {
+                    "filename": file.filename,
+                    "detected_faces": len(face_encodings),
+                    "reason": f"해당 사진에서 {len(face_encodings)}개의 얼굴이 감지됨",
+                }
+            )
+            continue  # 얼굴이 2개 이상이면 등록 안 함
+
         encodings_list.append(face_encodings[0])
 
     if not encodings_list:
-        return {"error": "업로드된 이미지에서 얼굴을 찾을 수 없습니다."}
+        if skipped_files:
+            return {
+                "error": "등록 가능한 얼굴이 없습니다.",
+                "skipped_files": skipped_files,
+            }
 
     # 기존 데이터와 합치기
     if user_id in face_db:
@@ -77,7 +102,8 @@ async def register_faces(
         pickle.dump(face_db[user_id], f)  # 리스트 전체 저장
 
     return {
-        "message": f"{user_id}번 사용자의 얼굴 {len(encodings_list)}개 등록 완료!",
+        "message": f"{user_id}번 사용자의 얼굴 {len(files)}개 중 {len(encodings_list)}개 등록 완료!",
+        "skipped_files": skipped_files,
         "similarity_results": similarity_results,  # 기존 얼굴과 유사도 출력
     }
 
