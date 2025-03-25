@@ -133,8 +133,37 @@ async def check_attendance(file: UploadFile = File(...)):
 
     # 모든 (unknown 얼굴, 등록된 얼굴) 조합 거리 계산
     for unknown_id, unknown_encoding in enumerate(unknown_encodings):
-        for user_id, known_encodings in face_db.items():
-            for known_encoding in known_encodings:
+        for user_id, user_data in face_db.items():
+            raw_vectors = user_data.get("raw", [])
+            clusters = user_data.get("clusters", None)
+
+            # 클러스터링된 경우
+            if clusters:
+                centroids = np.array(clusters["centroids"])
+                labels = clusters["labels"]
+
+                # 중심점들과 거리 비교 → 가장 가까운 클러스터 선택
+                distances_to_centroids = face_recognition.face_distance(
+                    centroids, unknown_encoding
+                )
+                closest_cluster_idx = int(np.argmin(distances_to_centroids))
+
+                # 해당 클러스터에 속한 raw 벡터들만 비교
+                selected_vectors = [
+                    raw_vectors[i]
+                    for i, label in enumerate(labels)
+                    if label == closest_cluster_idx  # 가장 가까운 클러스터 선택
+                ]
+
+            else:
+                # 클러스터가 없으면 전체 raw 벡터와 비교
+                selected_vectors = raw_vectors
+
+            if not selected_vectors:
+                continue
+
+            # 벡터들과 실제 거리 계산
+            for known_encoding in selected_vectors:
                 distance = face_recognition.face_distance(
                     [known_encoding], unknown_encoding
                 )[0]
@@ -176,5 +205,4 @@ async def check_attendance(file: UploadFile = File(...)):
 # 클러스터링 시각화 API
 @router.get("/visualize_clusters/{user_id}")
 async def get_cluster_visualization(user_id: int):
-    # 여기서 face_db는 전역 변수로 이미 로드되어 있다고 가정
     return visualize_clusters(face_db, user_id)
