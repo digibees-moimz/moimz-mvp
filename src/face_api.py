@@ -18,13 +18,16 @@ os.makedirs(FACE_DATA_DIR, exist_ok=True)  # 얼굴 벡터 파일 저장 디렉�
 # 저장된 얼굴 벡터 파일들을 불러오는 로직
 def load_faces_from_files():
     for file in os.listdir(FACE_DATA_DIR):
-        # "face_00.pkl" 형식의 파일 찾기
         if file.startswith("face_") and file.endswith(".pkl"):
             try:
-                # 파일명에서 user_id 추출
                 user_id = int(file.split("_")[1].split(".")[0])
                 with open(os.path.join(FACE_DATA_DIR, file), "rb") as f:
-                    face_db[user_id] = pickle.load(f)  # 얼굴 벡터 복원
+                    loaded_data = pickle.load(f)
+
+                    # 만약 loaded_data가 리스트이면, 새로운 구조로 변환
+                    if isinstance(loaded_data, list):
+                        loaded_data = {"raw": loaded_data}
+                    face_db[user_id] = loaded_data
                 print(f"✅ {user_id}번 사용자의 얼굴 데이터를 불러왔습니다.")
             except Exception as e:
                 print(f"⚠️ {file} 로딩 실패: {e}")
@@ -41,14 +44,11 @@ def update_user_clusters(user_id: int, threshold: int = 5, n_clusters: int = 3):
     user_data = face_db.get(user_id)
 
     if not user_data or "raw" not in user_data:
-        print(f"사용자 {user_id}의 raw 데이터가 없습니다.")
-        return
+        return f"사용자 {user_id}의 raw 데이터가 없습니다."
 
     raw_vectors = user_data["raw"]
     if len(raw_vectors) < threshold:
-        print(
-            f"사용자 {user_id}의 raw 벡터 수가 {threshold}개 미만이므로 클러스터링을 수행하지 않습니다."
-        )
+        return f"사용자 {user_id}의 raw 벡터 수가 {threshold}개 미만이므로 클러스터링을 수행하지 않습니다."
 
     # 사용자 등록 데이터가 임계치(5개 이상)을 넘어가면 클러스터링 수행
     X = np.array(raw_vectors)
@@ -63,7 +63,7 @@ def update_user_clusters(user_id: int, threshold: int = 5, n_clusters: int = 3):
         "centroids": centroids.tolist(),
         "labels": labels,
     }
-    print(
+    return (
         f"사용자 {user_id} 클러스터링 업데이트 완료: {n_clusters}개의 클러스터 생성됨."
     )
 
@@ -87,7 +87,7 @@ async def register_faces(user_id: int, files: List[UploadFile] = File(...)):
             skipped_files.append(
                 {
                     "filename": file.filename,
-                    "detected_faces": len(face_encodings),
+                    "detected_faces": 0,
                     "reason": "해당 사진에서 얼굴을 찾을 수 없음",
                 }
             )
@@ -114,28 +114,38 @@ async def register_faces(user_id: int, files: List[UploadFile] = File(...)):
 
     # 기존 데이터와 합치기
     if user_id in face_db:
-        face_db[user_id].extend(encodings_list)
+        # 만약 기존 데이터가 리스트 형태라면 "raw" 키로 변환
+        if isinstance(face_db[user_id], list):
+            face_db[user_id] = {"raw": face_db[user_id]}
+
+        face_db[user_id]["raw"].extend(encodings_list)
     else:
-        face_db[user_id] = encodings_list
+        face_db[user_id] = {"raw": encodings_list}
+
+    # 얼굴 등록 후 클러스터링 업데이트
+    cluster_msg = update_user_clusters(user_id)
+
+    # 얼굴 벡터 데이터를 파일로 저장
+    save_path = os.path.join(FACE_DATA_DIR, f"face_{user_id}.pkl")
+    with open(save_path, "wb") as f:
+        pickle.dump(face_db[user_id], f)  # 사용자 데이터(딕셔너리) 전체 전체 저장
 
     new_encoding = encodings_list[0]  # 새로 등록한 얼굴 벡터
 
     # 기존 얼굴 데이터와 유사도 비교
     similarity_results = []
-    for existing_user_id, saved_encodings in face_db.items():
-        distances = face_recognition.face_distance(saved_encodings, new_encoding)
-        min_distance = float(np.min(distances))
-        similarity_results.append(
-            {"user_id": existing_user_id, "min_distance": min_distance}
-        )
-
-    # 얼굴 벡터를 파일로 저장 (나중에 서버를 재시작해도 얼굴 데이터가 유지됨) - 임시
-    save_path = os.path.join(FACE_DATA_DIR, f"face_{user_id}.pkl")
-    with open(save_path, "wb") as f:
-        pickle.dump(face_db[user_id], f)  # 리스트 전체 저장
+    for existing_user_id, data in face_db.items():
+        raw_vectors = data.get("raw", [])
+        if raw_vectors:
+            distances = face_recognition.face_distance(raw_vectors, new_encoding)
+            min_distance = float(np.min(distances))
+            similarity_results.append(
+                {"user_id": existing_user_id, "min_distance": min_distance}
+            )
 
     return {
         "message": f"{user_id}번 사용자의 얼굴 {len(files)}개 중 {len(encodings_list)}개 등록 완료!",
+        "cluster_msg": cluster_msg,  # 클러스터링 결과 메시지 포함
         "skipped_files": skipped_files,
         "similarity_results": similarity_results,  # 기존 얼굴과 유사도 출력
     }
