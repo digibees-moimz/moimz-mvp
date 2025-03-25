@@ -3,7 +3,7 @@ from typing import List
 import face_recognition
 import numpy as np
 import os, pickle, cv2
-from .face_clustering import update_user_clusters
+from .face_clustering import update_user_clusters, visualize_clusters
 
 router = APIRouter()
 
@@ -171,3 +171,10 @@ async def check_attendance(file: UploadFile = File(...)):
         }
     else:
         return {"message": "출석한 사람 없음"}
+
+
+# 클러스터링 시각화 API
+@router.get("/visualize_clusters/{user_id}")
+async def get_cluster_visualization(user_id: int):
+    # 여기서 face_db는 전역 변수로 이미 로드되어 있다고 가정
+    return visualize_clusters(face_db, user_id)
