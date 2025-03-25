@@ -8,3 +8,4 @@ numpy
 opencv-python
 pillow
 python-multipart
+scikit-learn

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File
+from sklearn.cluster import KMeans
 from typing import List
 import face_recognition
 import numpy as np
@@ -33,11 +34,43 @@ def load_faces_from_files():
 load_faces_from_files()
 
 
+# 클러스터링 업데이트 함수 - threshold: 임계치, n_clusters: 클러스터의 개수(k)
+def update_user_clusters(user_id: int, threshold: int = 5, n_clusters: int = 3):
+
+    # 사용자 원본 벡터 리스트(raw 데이터) 가져오기
+    user_data = face_db.get(user_id)
+
+    if not user_data or "raw" not in user_data:
+        print(f"사용자 {user_id}의 raw 데이터가 없습니다.")
+        return
+
+    raw_vectors = user_data["raw"]
+    if len(raw_vectors) < threshold:
+        print(
+            f"사용자 {user_id}의 raw 벡터 수가 {threshold}개 미만이므로 클러스터링을 수행하지 않습니다."
+        )
+
+    # 사용자 등록 데이터가 임계치(5개 이상)을 넘어가면 클러스터링 수행
+    X = np.array(raw_vectors)
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    kmeans.fit(X)
+
+    centroids = kmeans.cluster_centers_  # 각 클러스터의 중심 벡터
+    labels = kmeans.labels_.tolist()  # 각 벡터가 어떤 클러스터에 속하는지 (0, 1, 2 등)
+
+    # face_db에 클러스터 결과 저장
+    face_db[user_id]["clusters"] = {
+        "centroids": centroids.tolist(),
+        "labels": labels,
+    }
+    print(
+        f"사용자 {user_id} 클러스터링 업데이트 완료: {n_clusters}개의 클러스터 생성됨."
+    )
+
+
 # 얼굴 등록 API
 @router.post("/register_faces/{user_id}")
-async def register_faces(
-    user_id: int, files: List[UploadFile] = File(...)
-):  # 다중 이미지 업로드 받기
+async def register_faces(user_id: int, files: List[UploadFile] = File(...)):
 
     encodings_list = []
     skipped_files = []  # 얼굴이 2개 이상인 파일 저장용
