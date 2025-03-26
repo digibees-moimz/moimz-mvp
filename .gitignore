@@ -9,3 +9,6 @@ __pycache__/
 
 # src/face_data 안의 개인 얼굴 벡터 파일
 /src/face_data/
+
+# AI 생성 이미지
+images/

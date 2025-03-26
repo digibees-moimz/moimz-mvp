@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from apis.diary_api import router as diary_router
-from apis.face_api import router as face_router
-from apis.image_api import router as dalle_router
+from src.apis.diary_api import router as diary_router
+from src.apis.face_api import router as face_router
+from src.apis.image_api import router as dalle_router
 
 app = FastAPI()
 
