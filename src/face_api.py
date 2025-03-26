@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File
 from typing import List
 import face_recognition
 import numpy as np
-import os, pickle, cv2
+import os, pickle, cv2, time
 from .face_clustering import update_user_clusters, visualize_clusters
 
 router = APIRouter()
@@ -120,6 +120,8 @@ async def register_faces(user_id: int, files: List[UploadFile] = File(...)):
 # 출석체크 API
 @router.post("/check_attendance")
 async def check_attendance(file: UploadFile = File(...)):
+    start_time = time.time()  # ⏱ 시작 시간 기록
+
     image_bytes = await file.read()
     image_np = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
@@ -193,13 +195,20 @@ async def check_attendance(file: UploadFile = File(...)):
             {"user_id": match["user_id"], "distance": match["distance"]}
         )
 
+    end_time = time.time()  # ⏱ 끝난 시간 기록
+    duration = round(end_time - start_time, 3)  # 실행 시간 (초 단위)
+
     if attendance_results:
         return {
             "출석자 ID 명단": list(attendance_results),
             "출석 인원 수": len(attendance_results),
+            "실행 시간 (초)": duration,
         }
     else:
-        return {"message": "출석한 사람 없음"}
+        return {
+            "message": "출석한 사람 없음",
+            "실행 시간 (초)": duration,
+        }
 
 
 # 클러스터링 시각화 API
