@@ -2,12 +2,10 @@ from fastapi import APIRouter, UploadFile, File
 from typing import List
 import face_recognition
 import numpy as np
-import os
-import pickle
-import cv2
+import os, pickle, cv2, time
+from .face_clustering import update_user_clusters, visualize_clusters
 
 router = APIRouter()
-
 
 face_db = {}  # 얼굴 데이터 저장 - 임시
 FACE_DATA_DIR = os.path.join("src", "face_data")  # 얼굴 데이터 저장 폴더 경로 설정
@@ -17,13 +15,16 @@ os.makedirs(FACE_DATA_DIR, exist_ok=True)  # 얼굴 벡터 파일 저장 디렉�
 # 저장된 얼굴 벡터 파일들을 불러오는 로직
 def load_faces_from_files():
     for file in os.listdir(FACE_DATA_DIR):
-        # "face_00.pkl" 형식의 파일 찾기
         if file.startswith("face_") and file.endswith(".pkl"):
             try:
-                # 파일명에서 user_id 추출
                 user_id = int(file.split("_")[1].split(".")[0])
                 with open(os.path.join(FACE_DATA_DIR, file), "rb") as f:
-                    face_db[user_id] = pickle.load(f)  # 얼굴 벡터 복원
+                    loaded_data = pickle.load(f)
+
+                    # 만약 loaded_data가 리스트이면, 새로운 구조로 변환
+                    if isinstance(loaded_data, list):
+                        loaded_data = {"raw": loaded_data}
+                    face_db[user_id] = loaded_data
                 print(f"✅ {user_id}번 사용자의 얼굴 데이터를 불러왔습니다.")
             except Exception as e:
                 print(f"⚠️ {file} 로딩 실패: {e}")
@@ -35,9 +36,7 @@ load_faces_from_files()
 
 # 얼굴 등록 API
 @router.post("/register_faces/{user_id}")
-async def register_faces(
-    user_id: int, files: List[UploadFile] = File(...)
-):  # 다중 이미지 업로드 받기
+async def register_faces(user_id: int, files: List[UploadFile] = File(...)):
 
     encodings_list = []
     skipped_files = []  # 얼굴이 2개 이상인 파일 저장용
@@ -54,7 +53,7 @@ async def register_faces(
             skipped_files.append(
                 {
                     "filename": file.filename,
-                    "detected_faces": len(face_encodings),
+                    "detected_faces": 0,
                     "reason": "해당 사진에서 얼굴을 찾을 수 없음",
                 }
             )
@@ -81,28 +80,38 @@ async def register_faces(
 
     # 기존 데이터와 합치기
     if user_id in face_db:
-        face_db[user_id].extend(encodings_list)
+        # 만약 기존 데이터가 리스트 형태라면 "raw" 키로 변환
+        if isinstance(face_db[user_id], list):
+            face_db[user_id] = {"raw": face_db[user_id]}
+
+        face_db[user_id]["raw"].extend(encodings_list)
     else:
-        face_db[user_id] = encodings_list
+        face_db[user_id] = {"raw": encodings_list}
+
+    # 얼굴 등록 후 클러스터링 업데이트
+    cluster_msg = update_user_clusters(face_db, user_id)
+
+    # 얼굴 벡터 데이터를 파일로 저장
+    save_path = os.path.join(FACE_DATA_DIR, f"face_{user_id}.pkl")
+    with open(save_path, "wb") as f:
+        pickle.dump(face_db[user_id], f)  # 사용자 데이터(딕셔너리) 전체 전체 저장
 
     new_encoding = encodings_list[0]  # 새로 등록한 얼굴 벡터
 
     # 기존 얼굴 데이터와 유사도 비교
     similarity_results = []
-    for existing_user_id, saved_encodings in face_db.items():
-        distances = face_recognition.face_distance(saved_encodings, new_encoding)
-        min_distance = float(np.min(distances))
-        similarity_results.append(
-            {"user_id": existing_user_id, "min_distance": min_distance}
-        )
-
-    # 얼굴 벡터를 파일로 저장 (나중에 서버를 재시작해도 얼굴 데이터가 유지됨) - 임시
-    save_path = os.path.join(FACE_DATA_DIR, f"face_{user_id}.pkl")
-    with open(save_path, "wb") as f:
-        pickle.dump(face_db[user_id], f)  # 리스트 전체 저장
+    for existing_user_id, data in face_db.items():
+        raw_vectors = data.get("raw", [])
+        if raw_vectors:
+            distances = face_recognition.face_distance(raw_vectors, new_encoding)
+            min_distance = float(np.min(distances))
+            similarity_results.append(
+                {"user_id": existing_user_id, "min_distance": min_distance}
+            )
 
     return {
         "message": f"{user_id}번 사용자의 얼굴 {len(files)}개 중 {len(encodings_list)}개 등록 완료!",
+        "cluster_msg": cluster_msg,  # 클러스터링 결과 메시지 포함
         "skipped_files": skipped_files,
         "similarity_results": similarity_results,  # 기존 얼굴과 유사도 출력
     }
@@ -111,6 +120,8 @@ async def register_faces(
 # 출석체크 API
 @router.post("/check_attendance")
 async def check_attendance(file: UploadFile = File(...)):
+    start_time = time.time()  # ⏱ 시작 시간 기록
+
     image_bytes = await file.read()
     image_np = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
@@ -124,8 +135,37 @@ async def check_attendance(file: UploadFile = File(...)):
 
     # 모든 (unknown 얼굴, 등록된 얼굴) 조합 거리 계산
     for unknown_id, unknown_encoding in enumerate(unknown_encodings):
-        for user_id, known_encodings in face_db.items():
-            for known_encoding in known_encodings:
+        for user_id, user_data in face_db.items():
+            raw_vectors = user_data.get("raw", [])
+            clusters = user_data.get("clusters", None)
+
+            # 클러스터링된 경우
+            if clusters:
+                centroids = np.array(clusters["centroids"])
+                labels = clusters["labels"]
+
+                # 중심점들과 거리 비교 → 가장 가까운 클러스터 선택
+                distances_to_centroids = face_recognition.face_distance(
+                    centroids, unknown_encoding
+                )
+                closest_cluster_idx = int(np.argmin(distances_to_centroids))
+
+                # 해당 클러스터에 속한 raw 벡터들만 비교
+                selected_vectors = [
+                    raw_vectors[i]
+                    for i, label in enumerate(labels)
+                    if label == closest_cluster_idx  # 가장 가까운 클러스터 선택
+                ]
+
+            else:
+                # 클러스터가 없으면 전체 raw 벡터와 비교
+                selected_vectors = raw_vectors
+
+            if not selected_vectors:
+                continue
+
+            # 벡터들과 실제 거리 계산
+            for known_encoding in selected_vectors:
                 distance = face_recognition.face_distance(
                     [known_encoding], unknown_encoding
                 )[0]
@@ -155,10 +195,23 @@ async def check_attendance(file: UploadFile = File(...)):
             {"user_id": match["user_id"], "distance": match["distance"]}
         )
 
+    end_time = time.time()  # ⏱ 끝난 시간 기록
+    duration = round(end_time - start_time, 3)  # 실행 시간 (초 단위)
+
     if attendance_results:
         return {
             "출석자 ID 명단": list(attendance_results),
             "출석 인원 수": len(attendance_results),
+            "실행 시간 (초)": duration,
         }
     else:
-        return {"message": "출석한 사람 없음"}
+        return {
+            "message": "출석한 사람 없음",
+            "실행 시간 (초)": duration,
+        }
+
+
+# 클러스터링 시각화 API
+@router.get("/visualize_clusters/{user_id}")
+async def get_cluster_visualization(user_id: int):
+    return visualize_clusters(face_db, user_id)
