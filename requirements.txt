@@ -10,3 +10,5 @@ pillow
 python-multipart
 scikit-learn
 matplotlib
+selenium
+webdriver-manager

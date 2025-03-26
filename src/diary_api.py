@@ -1,26 +1,26 @@
 import os
 import anthropic
+from fastapi import APIRouter
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=".env")  # 환경 변수 로드
+router = APIRouter()
 
+# API 키 환경변수로 가져오기
+load_dotenv(dotenv_path=".env")
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
 
 def load_prompt():
-    with open("src/prompt_template.txt", "r", encoding="utf-8") as f:
+    with open("src/prompts/prompt_template.txt", "r", encoding="utf-8") as f:
         return f.read()
-
-
-# 프롬프트 템플릿 로드
-BASE_PROMPT = load_prompt()
 
 
 async def create_diary(group_data, transactions):
     if not transactions:
         return "결제 내역이 없습니다."
 
+    BASE_PROMPT = load_prompt()
     prompt = BASE_PROMPT + "\n\n"
 
     # 모임 데이터 추가
@@ -45,5 +45,15 @@ async def create_diary(group_data, transactions):
         messages=[{"role": "user", "content": prompt}],
     )
 
-    print("🟢 Claude API 응답:", response)
     return response.content
+
+
+# 모임일기 생성 API
+@router.post("/groups/{groupId}/diaries")
+async def create_diary_api(groupId: int, data: dict):
+    group_data = data.get("group_data", {})  # 모임 정보
+    transactions = data.get("card_transactions", [])  # 카드 결제 데이터
+
+    diary_entry = await create_diary(group_data, transactions)
+
+    return {"groupId": groupId, "diary": diary_entry}

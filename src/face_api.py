@@ -3,7 +3,7 @@ from typing import List
 import face_recognition
 import numpy as np
 import os, pickle, cv2, time
-from .face_clustering import update_user_clusters, visualize_clusters
+from .utils.face_clustering import update_user_clusters, visualize_clusters
 
 router = APIRouter()
 

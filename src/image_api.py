@@ -6,7 +6,6 @@ import os
 
 # API 키 환경변수로 가져오기
 load_dotenv(dotenv_path=".env")
-print(os.getenv("OPENAI_API_KEY"))
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 router = APIRouter()
