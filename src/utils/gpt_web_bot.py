@@ -75,7 +75,26 @@ class GPTWebBot:
 
         raise Exception("❌ 진짜 입력창이 5분 내에 활성화되지 않았습니다.")
 
-    # 이미지 생성 대기 및 수집 로직 예시 (대기 5분)
+    # '이미지 생성됨' 버튼이 뜰 때까지 대기
+    def wait_for_image_complete_button(self, timeout=300):
+        print("[~] '이미지 생성됨' 버튼 대기 중...")
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            try:
+                buttons = self.driver.find_elements(By.TAG_NAME, "button")
+                for btn in buttons:
+                    if btn.text.strip() == "이미지 생성됨":
+                        print("✅ '이미지 생성됨' 버튼 확인됨")
+                        return True
+            except Exception as e:
+                print(f"❗ 버튼 확인 중 예외 발생: {e}")
+            time.sleep(2)
+
+        print("⚠️ 버튼이 5분 내로 나타나지 않았습니다")
+        return False
+
+    # 이미지 생성 대기 및 WebElement 수집
     def wait_for_images(self, timeout=300):
         print("[~] 이미지 생성 중... 최대 300초 대기")
         start_time = time.time()
@@ -87,38 +106,45 @@ class GPTWebBot:
                 )
                 if imgs:
                     print(f"[✔] 이미지 {len(imgs)}개 발견")
-                    img_paths = []
-
-                    for idx, img in enumerate(imgs):
-                        src = img.get_attribute("src")
-                        if src:
-                            print(f"  - {idx+1}번 이미지 URL: {src}")
-                            img_data = requests.get(src).content
-                            save_path = f"generated_img_{int(time.time())}_{idx}.png"
-                            with open(save_path, "wb") as f:
-                                f.write(img_data)
-                            img_paths.append(save_path)
-
-                    print(f"[✔] 이미지 {len(img_paths)}개 저장 완료")
-                    return img_paths
+                    return imgs  # WebElement 리스트 그대로 반환
             except Exception as e:
                 print(f"❗ 이미지 수집 중 예외 발생: {e}")
-
             time.sleep(2)
 
-        print("⚠️ 이미지 생성 시간 초과 (5분 내에 이미지가 생성되지 않았습니다)")
+        print("⚠️ 이미지 생성 시간 초과")
         return []
 
-    # base64 이미지를 디코딩해서 파일로 저장
-    def save_images(self, images, save_dir="images/dairy/", prefix="image"):
+    def save_best_image(
+        self, images, save_dir="src/images/diary/", prefix="best_image"
+    ):
         os.makedirs(save_dir, exist_ok=True)
-        count = 0
-        for i, img in enumerate(images):
+
+        for img in images:
             src = img.get_attribute("src")
-            if src.startswith("data:image"):
-                _, b64 = src.split(",", 1)
-                filename = os.path.join(save_dir, f"{prefix}_{i+1}.png")
-                with open(filename, "wb") as f:
-                    f.write(base64.b64decode(b64))
-                count += 1
-        print(f"[✔] 이미지 {count}개 저장 완료")
+            style = img.get_attribute("style") or ""
+
+            # 잘 생성된 이미지 기준: 중복 제거 + opacity 1 + blur 없음
+            if not src or "blur(" in style or "opacity: 0" in style:
+                continue
+
+            try:
+                if src.startswith("data:image"):
+                    _, b64 = src.split(",", 1)
+                    filename = os.path.join(save_dir, f"{prefix}.png")
+                    with open(filename, "wb") as f:
+                        f.write(base64.b64decode(b64))
+                    print(f"[✔] base64 이미지 저장 완료: {filename}")
+                    return filename
+
+                elif src.startswith("http"):
+                    img_data = requests.get(src, timeout=5).content
+                    filename = os.path.join(save_dir, f"{prefix}.png")
+                    with open(filename, "wb") as f:
+                        f.write(img_data)
+                    print(f"[✔] 이미지 저장 완료: {filename}")
+                    return filename
+            except Exception as e:
+                print(f"❗ 이미지 저장 실패: {e}")
+
+        print("⚠️ 저장할 수 있는 이미지가 없습니다.")
+        return None

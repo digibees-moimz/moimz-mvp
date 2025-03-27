@@ -89,17 +89,18 @@ def generate_image_from_diary(req: DiaryRequest, request: Request):
     prompt = generate_diary_prompt(req.diary_text, character_imgs, style_imgs)
 
     # 4. 프롬프트 전송
-    bot.send_prompt("단디, 똑디, 우디랑 해운대 놀러감. 밀면 먹음. 그림 그려줘!")
-
+    bot.send_prompt(
+        "단디, 똑디, 우디가 다같이 시간을 맞춰 부산으로 2박 3일 여름휴가를 떠났다! 밝고 귀여운 그림으로 그려줘!"
+    )
     # bot.send_prompt(prompt, character_imgs + style_imgs)
 
-    # 5. 이미지 생성 기다리기 + 저장
-    images = bot.wait_for_images()
-    image_prefix = f"diary_{uuid.uuid4().hex[:8]}"
-    bot.save_images(images, save_dir="images", prefix=image_prefix)
-
-    return {
-        "message": "이미지 생성 완료!",
-        "image_count": len(images),
-        "prefix": image_prefix,
-    }
+    # 5. 이미지 생성 완료 여부 확인 후 저장
+    if bot.wait_for_image_complete_button():
+        image_elements = bot.wait_for_images()
+        saved_path = bot.save_best_image(image_elements, prefix="moim_diary")
+        return {
+            "message": "가장 잘된 이미지 저장 완료!" if saved_path else "저장 실패",
+            "saved_path": saved_path,
+        }
+    else:
+        return {"message": "이미지 생성이 완료되지 않았습니다.", "image_count": 0}
