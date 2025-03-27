@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
     bot.go_to_chatgpt()
     bot.wait_for_login()  # 첫 실행만 수동 로그인 필요
-    bot.select_gpt4o()
+    # bot.select_gpt4o()
 
     # 드라이버 & bot 상태 공유
     app.state.driver = driver

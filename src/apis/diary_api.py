@@ -89,7 +89,9 @@ def generate_image_from_diary(req: DiaryRequest, request: Request):
     prompt = generate_diary_prompt(req.diary_text, character_imgs, style_imgs)
 
     # 4. 프롬프트 전송
-    bot.send_prompt(prompt, character_imgs + style_imgs)
+    bot.send_prompt("단디, 똑디, 우디랑 해운대 놀러감. 밀면 먹음. 그림 그려줘!")
+
+    # bot.send_prompt(prompt, character_imgs + style_imgs)
 
     # 5. 이미지 생성 기다리기 + 저장
     images = bot.wait_for_images()
