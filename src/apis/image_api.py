@@ -46,8 +46,8 @@ def generate_dalle_image(prompt: str) -> str:
         raise RuntimeError(f"[Error] 이미지 생성 실패: {e}")
 
 
-# 그림 생성 API
-@router.post("/generate-image")
+# DALL·E 3 기반 모임 그림 생성 함수
+@router.post("/dalle/generate-image")
 async def generate_image(data: DiaryRequest):
     prompt = convert_diary_to_prompt(data.diary_text)
     try:

@@ -15,7 +15,7 @@ client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
 
 class DiaryRequest(BaseModel):
-    diary: str  # 일기 내용
+    diary_text: str  # 일기 내용
 
 
 def load_prompt():
@@ -66,9 +66,10 @@ async def create_diary_content(groupId: int, data: dict):
     return {"groupId": groupId, "diary": diary_entry}
 
 
-@router.post("/generate-image")
+# 셀레니움 기반 모임일기 그림 생성 API
+@router.post("/selenium/generate-image")
 def generate_image_from_diary(req: DiaryRequest, request: Request):
-    print(req.diary)
+    print(req.diary_text)
 
     # 1. main.py에서 저장해둔 bot 꺼내기
     bot = request.app.state.bot
@@ -85,7 +86,7 @@ def generate_image_from_diary(req: DiaryRequest, request: Request):
     ]
 
     # 3. 프롬프트 생성
-    prompt = generate_diary_prompt(req.diary, character_imgs, style_imgs)
+    prompt = generate_diary_prompt(req.diary_text, character_imgs, style_imgs)
 
     # 4. 프롬프트 전송
     bot.send_prompt(prompt, character_imgs + style_imgs)

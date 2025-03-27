@@ -1,5 +1,6 @@
 import os
 
+
 # 일기 그림 생성 프롬프트
 def generate_diary_prompt(
     diary_text: str, character_images: list, style_images: list
@@ -10,17 +11,18 @@ def generate_diary_prompt(
     style_img_names = "\n".join(f"- {os.path.basename(p)}" for p in style_images)
 
     return f"""
+정사각형(1024x1024) 비율의 한 장짜리 그림을 그려줘.
+
 이제 너는 단디, 똑디, 우디 캐릭터로 모임 일기 그림을 그려줘야 해.
 
-[단디, 똑디, 우디 이미지]
-아래 이미지를 참고해서 그려줘:
+첨부한 단디, 똑디, 우디 이미지를 참고해서 그려줘:
 {character_img_names}
 똑디도 단디와 똑같은 새라서 입과 부리가 단디의 입처럼 생겨야 해. 
 
 이 세 친구들로 모임 일기 그림을 그리는데, 다른 인물들 없이 이 세 친구만 그림에 나와야 해. 
 
-[다른 이미지]
-그림체와 분위기는 아래 이미지를 참고해서 그려줘:
+[분위기 및 그림체]
+그림체와 분위기는 캐릭터와 별도로 참부한 이미지를 참고해서 그려줘:
 {style_img_names}
 표정과 감정 표현은 다양하게 하고, 상황에 맞는 악세사리나 소품도 추가해줘
 

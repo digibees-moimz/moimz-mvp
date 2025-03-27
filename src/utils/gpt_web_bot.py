@@ -45,10 +45,11 @@ class GPTWebBot:
     # 프롬프트 전송
     def send_prompt(self, prompt: str, image_paths: list = None):
         if image_paths:
+            # 이미지 하나씩 올리는 대신 input 태그 하나를 재사용
+            file_input = self.wait.until(
+                EC.presence_of_element_located((By.XPATH, "//input[@type='file']"))
+            )
             for image_path in image_paths:
-                file_input = self.wait.until(
-                    EC.presence_of_element_located((By.XPATH, "//input[@type='file']"))
-                )
                 file_input.send_keys(os.path.abspath(image_path))
                 time.sleep(1.5)
 
