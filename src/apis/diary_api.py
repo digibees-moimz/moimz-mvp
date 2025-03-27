@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from selenium import webdriver
 from src.utils.gpt_web_bot import GPTWebBot
 from src.utils.prompt_utils import generate_diary_prompt
-import os, anthropic, uuid
+import os, anthropic
 
 router = APIRouter()
 
@@ -89,10 +89,7 @@ def generate_image_from_diary(req: DiaryRequest, request: Request):
     prompt = generate_diary_prompt(req.diary_text, character_imgs, style_imgs)
 
     # 4. 프롬프트 전송
-    bot.send_prompt(
-        "단디, 똑디, 우디가 다같이 시간을 맞춰 부산으로 2박 3일 여름휴가를 떠났다! 밝고 귀여운 그림으로 그려줘!"
-    )
-    # bot.send_prompt(prompt, character_imgs + style_imgs)
+    bot.send_prompt(prompt, character_imgs + style_imgs)
 
     # 5. 이미지 생성 완료 여부 확인 후 저장
     if bot.wait_for_image_complete_button():

@@ -2,9 +2,10 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException
-import base64, os, time, requests
+import base64, os, time, requests, pyperclip
 
 
 class GPTWebBot:
@@ -47,33 +48,24 @@ class GPTWebBot:
             file_input = self.wait.until(
                 EC.presence_of_element_located((By.XPATH, "//input[@type='file']"))
             )
-            for image_path in image_paths:
-                file_input.send_keys(os.path.abspath(image_path))
-                time.sleep(1.5)
-
-        print("⌛ 진짜 입력창(div[contenteditable='true']) 활성화 대기 중...")
-        timeout = 300
-        start_time = time.time()
-
-        while time.time() - start_time < timeout:
-            try:
-                input_boxes = self.driver.find_elements(
-                    By.CSS_SELECTOR, "div[contenteditable='true']"
-                )
-                for idx, box in enumerate(input_boxes):
-                    print(
-                        f"[{idx+1}] is_displayed: {box.is_displayed()}, is_enabled: {box.is_enabled()}"
-                    )
-                    if box.is_displayed() and box.is_enabled():
-                        print("✅ 입력창 찾음, 프롬프트 전송")
-                        box.send_keys(prompt)
-                        box.send_keys(Keys.ENTER)
-                        return
-            except Exception as e:
-                print(f"❗ 예외 발생: {e}")
+            absolute_paths = "\n".join([os.path.abspath(p) for p in image_paths])
+            file_input.send_keys(absolute_paths)
             time.sleep(2)
 
-        raise Exception("❌ 진짜 입력창이 5분 내에 활성화되지 않았습니다.")
+        # 텍스트 입력창 활성화
+        input_box = self.wait.until(
+            EC.presence_of_element_located(
+                (By.CSS_SELECTOR, "div[contenteditable='true']")
+            )
+        )
+        ActionChains(self.driver).move_to_element(input_box).click().perform()
+
+        # 클립보드를 활용한 붙여넣기 (이모지 포함 가능)
+        pyperclip.copy(prompt if prompt.strip() else ".")
+        input_box.send_keys(Keys.COMMAND, "v")  # MacOS, Windows/Linux: Keys.CONTROL
+
+        time.sleep(1)  # 붙여넣기 후 잠시 대기
+        input_box.send_keys(Keys.ENTER)
 
     # '이미지 생성됨' 버튼이 뜰 때까지 대기
     def wait_for_image_complete_button(self, timeout=300):
@@ -123,14 +115,15 @@ class GPTWebBot:
             src = img.get_attribute("src")
             style = img.get_attribute("style") or ""
 
-            # 잘 생성된 이미지 기준: 중복 제거 + opacity 1 + blur 없음
             if not src or "blur(" in style or "opacity: 0" in style:
                 continue
+
+            timestamp = int(time.time())  # 현재시간을 정수로 가져오기
+            filename = os.path.join(save_dir, f"{prefix}_{timestamp}.png")
 
             try:
                 if src.startswith("data:image"):
                     _, b64 = src.split(",", 1)
-                    filename = os.path.join(save_dir, f"{prefix}.png")
                     with open(filename, "wb") as f:
                         f.write(base64.b64decode(b64))
                     print(f"[✔] base64 이미지 저장 완료: {filename}")
@@ -138,7 +131,6 @@ class GPTWebBot:
 
                 elif src.startswith("http"):
                     img_data = requests.get(src, timeout=5).content
-                    filename = os.path.join(save_dir, f"{prefix}.png")
                     with open(filename, "wb") as f:
                         f.write(img_data)
                     print(f"[✔] 이미지 저장 완료: {filename}")
