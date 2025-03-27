@@ -1,7 +1,10 @@
-import os
-import anthropic
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from dotenv import load_dotenv
+from pydantic import BaseModel
+from selenium import webdriver
+from src.utils.gpt_web_bot import GPTWebBot
+from src.utils.prompt_utils import generate_diary_prompt
+import os, anthropic, uuid
 
 router = APIRouter()
 
@@ -11,12 +14,16 @@ CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 
 
+class DiaryRequest(BaseModel):
+    diary: str  # 일기 내용
+
+
 def load_prompt():
     with open("src/prompts/prompt_template.txt", "r", encoding="utf-8") as f:
         return f.read()
 
 
-async def create_diary(group_data, transactions):
+async def generate_diary_content(group_data, transactions):
     if not transactions:
         return "결제 내역이 없습니다."
 
@@ -48,12 +55,48 @@ async def create_diary(group_data, transactions):
     return response.content
 
 
-# 모임일기 생성 API
+# 모임일기 내용 생성 API
 @router.post("/groups/{groupId}/diaries")
-async def create_diary_api(groupId: int, data: dict):
+async def create_diary_content(groupId: int, data: dict):
     group_data = data.get("group_data", {})  # 모임 정보
     transactions = data.get("card_transactions", [])  # 카드 결제 데이터
 
-    diary_entry = await create_diary(group_data, transactions)
+    diary_entry = await generate_diary_content(group_data, transactions)
 
     return {"groupId": groupId, "diary": diary_entry}
+
+
+@router.post("/generate-image")
+def generate_image_from_diary(req: DiaryRequest, request: Request):
+    print(req.diary)
+
+    # 1. main.py에서 저장해둔 bot 꺼내기
+    bot = request.app.state.bot
+
+    # 2. 학습 이미지 준비
+    character_imgs = [
+        "src/images/dandi.png",
+        "src/images/ddockdi.png",
+        "src/images/woodi.png",
+    ]
+    style_imgs = [
+        "src/images/happy_bright_style_1.png",
+        "src/images/happy_bright_style_2.png",
+    ]
+
+    # 3. 프롬프트 생성
+    prompt = generate_diary_prompt(req.diary, character_imgs, style_imgs)
+
+    # 4. 프롬프트 전송
+    bot.send_prompt(prompt, character_imgs + style_imgs)
+
+    # 5. 이미지 생성 기다리기 + 저장
+    images = bot.wait_for_images()
+    image_prefix = f"diary_{uuid.uuid4().hex[:8]}"
+    bot.save_images(images, save_dir="images", prefix=image_prefix)
+
+    return {
+        "message": "이미지 생성 완료!",
+        "image_count": len(images),
+        "prefix": image_prefix,
+    }
