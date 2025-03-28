@@ -76,9 +76,9 @@ def generate_image_from_diary(req: DiaryRequest, request: Request):
 
     # 2. 학습 이미지 준비
     character_imgs = [
-        "src/images/dandi.png",
-        "src/images/ddockdi.png",
         "src/images/woodi.png",
+        "src/images/ddockdi.png",
+        "src/images/dandi.png",
     ]
     style_imgs = [
         "src/images/happy_bright_style_1.png",

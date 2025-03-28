@@ -5,7 +5,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException
-import base64, os, time, requests, pyperclip
+import base64, os, time, requests, pyperclip, random
 
 
 class GPTWebBot:
@@ -44,27 +44,37 @@ class GPTWebBot:
 
     # 프롬프트 전송
     def send_prompt(self, prompt: str, image_paths: list = None):
-        if image_paths:
-            file_input = self.wait.until(
-                EC.presence_of_element_located((By.XPATH, "//input[@type='file']"))
-            )
-            absolute_paths = "\n".join([os.path.abspath(p) for p in image_paths])
-            file_input.send_keys(absolute_paths)
-            time.sleep(2)
-
         # 텍스트 입력창 활성화
         input_box = self.wait.until(
             EC.presence_of_element_located(
                 (By.CSS_SELECTOR, "div[contenteditable='true']")
             )
         )
-        ActionChains(self.driver).move_to_element(input_box).click().perform()
+        ActionChains(self.driver).move_to_element(input_box).pause(
+            random.uniform(0.5, 1.5)
+        ).click().perform()
+        
+        time.sleep(random.uniform(3, 10))  # 붙여넣기 후 잠시 대기
+        
+        # 클립보드로 붙여넣기
+        pyperclip.copy(prompt if prompt.strip() else ".")
+        input_box.send_keys(Keys.COMMAND, "v")  # 또는 Keys.CONTROL for Windows
+        
+        time.sleep(random.uniform(2, 5))  # 붙여넣기 후 잠시 대기
+        
+        if image_paths:
+            file_input = self.wait.until(
+                EC.presence_of_element_located((By.XPATH, "//input[@type='file']"))
+            )
+            absolute_paths = "\n".join([os.path.abspath(p) for p in image_paths])
+            file_input.send_keys(absolute_paths)
+            time.sleep(random.uniform(5, 15))
 
         # 클립보드를 활용한 붙여넣기 (이모지 포함 가능)
         pyperclip.copy(prompt if prompt.strip() else ".")
         input_box.send_keys(Keys.COMMAND, "v")  # MacOS, Windows/Linux: Keys.CONTROL
 
-        time.sleep(1)  # 붙여넣기 후 잠시 대기
+        
         input_box.send_keys(Keys.ENTER)
 
     # '이미지 생성됨' 버튼이 뜰 때까지 대기
@@ -81,7 +91,7 @@ class GPTWebBot:
                         return True
             except Exception as e:
                 print(f"❗ 버튼 확인 중 예외 발생: {e}")
-            time.sleep(2)
+            time.sleep(random.uniform(5, 15))
 
         print("⚠️ 버튼이 5분 내로 나타나지 않았습니다")
         return False
@@ -101,7 +111,7 @@ class GPTWebBot:
                     return imgs  # WebElement 리스트 그대로 반환
             except Exception as e:
                 print(f"❗ 이미지 수집 중 예외 발생: {e}")
-            time.sleep(2)
+            time.sleep(random.uniform(5, 15))
 
         print("⚠️ 이미지 생성 시간 초과")
         return []
