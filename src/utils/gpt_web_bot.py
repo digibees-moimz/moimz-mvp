@@ -4,7 +4,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException
-import base64, os, time, requests, pyperclip, random
+import base64, os, time, requests, pyperclip, random, uuid, shutil
+from PIL import Image
 
 
 class GPTWebBot:
@@ -41,7 +42,7 @@ class GPTWebBot:
         except:
             print("⚠️ 모델 선택 생략 (이미 선택됐을 수 있음)")
 
-    # 프롬프트 전송
+    # 프롬프트 전송 (프롬프트 분리 + 줄 단위 타이핑 + 이미지 업로드 후 전송)
     def send_prompt(self, prompt: str, image_paths: list = None):
         # 텍스트 입력창 활성화
         input_box = self.wait.until(
@@ -54,19 +55,37 @@ class GPTWebBot:
             random.uniform(0.5, 1.2)
         ).click().perform()
 
-        # 잠시 기다린 후 클립보드로 붙여넣기
-        time.sleep(random.uniform(2.5, 5.5))
-        pyperclip.copy(prompt if prompt.strip() else ".")
+        # 프롬프트 분리: 설명 부분 + 일기 본문
+        if "[일기 내용]" in prompt:
+            pre, diary = prompt.split("[일기 내용]", 1)
+            diary = "[일기 내용]" + diary  # 라벨 포함
+        else:
+            pre, diary = prompt, ""
+
+        # 설명 줄 단위로 타이핑
+        for line in pre.strip().splitlines():
+            self.human_type(input_box, line)
+            input_box.send_keys(Keys.SHIFT, Keys.ENTER)
+            time.sleep(random.uniform(0.2, 0.6))
+
+        # 🐌 붙여넣기 전 채팅창 스크롤 + 멈칫
+        self.human_scroll(end=600)
+        time.sleep(random.uniform(1.0, 2.0))
+
+        # 일기 본문 줄바꿈 후 클립보드로 붙여넣기
+        self.human_type(input_box, "\n")
+        pyperclip.copy(diary.strip() or ".")
         input_box.send_keys(Keys.COMMAND, "v")
 
         # 잠시 기다린 후 이미지 업로드
         time.sleep(random.uniform(1.5, 3.0))
+
         if image_paths:
+            path_map = self.copy_with_smart_names(image_paths)
             file_input = self.wait.until(
                 EC.presence_of_element_located((By.XPATH, "//input[@type='file']"))
             )
-            absolute_paths = "\n".join([os.path.abspath(p) for p in image_paths])
-            file_input.send_keys(absolute_paths)
+            file_input.send_keys("\n".join(path_map.values()))
             time.sleep(random.uniform(5, 10))
 
         # 엔터로 전송
@@ -79,6 +98,7 @@ class GPTWebBot:
 
         while time.time() - start_time < timeout:
             try:
+                self.human_scroll(end=600)
                 buttons = self.driver.find_elements(By.TAG_NAME, "button")
                 for btn in buttons:
                     if btn.text.strip() == "이미지 생성됨":
@@ -128,13 +148,7 @@ class GPTWebBot:
             filename = os.path.join(save_dir, f"{prefix}_{timestamp}.png")
 
             try:
-                if src.startswith("data:image"):
-                    _, b64 = src.split(",", 1)
-                    with open(filename, "wb") as f:
-                        f.write(base64.b64decode(b64))
-                    print(f"[✔] base64 이미지 저장 완료: {filename}")
-                    return filename
-                elif src.startswith("http"):
+                if src.startswith("http"):
                     img_data = requests.get(src, timeout=5).content
                     with open(filename, "wb") as f:
                         f.write(img_data)
@@ -145,3 +159,41 @@ class GPTWebBot:
 
         print("⚠️ 저장할 수 있는 이미지가 없습니다.")
         return None
+
+    # 사람처럼 보이도록 적용한 함수들
+    def human_type(self, element, text: str):
+        for char in text:
+            element.send_keys(char)
+            time.sleep(random.uniform(0.04, 0.23))  # 자연스러운 딜레이
+
+    def human_scroll(self, end=1000, step=200):
+        for i in range(0, end, step):
+            self.driver.execute_script(f"window.scrollTo(0, {i});")
+            time.sleep(random.uniform(0.3, 0.6))
+
+    # 업로드할 이미지들 파일명에 랜덤 토큰 붙이고 저장
+    def copy_with_smart_names(self, image_paths: list, temp_dir="temp_uploads") -> dict:
+        # temp 디렉토리 초기화
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+
+        os.makedirs(temp_dir, exist_ok=True)
+
+        mapping = {}
+
+        for path in image_paths:
+            try:
+                base = os.path.basename(path)
+                name, ext = os.path.splitext(base)
+                rand = uuid.uuid4().hex[:6]
+                new_name = f"{name}_{rand}{ext}"
+                new_path = new_path = os.path.abspath(os.path.join(temp_dir, new_name))
+
+                img = Image.open(path)
+                img.save(new_path)
+
+                mapping[path] = new_path
+            except Exception as e:
+                print(f"❗ 이미지 복사 실패: {e}")
+
+        return mapping
