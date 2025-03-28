@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Request
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from selenium import webdriver
-from src.utils.gpt_web_bot import GPTWebBot
 from src.utils.prompt_utils import generate_diary_prompt
 import os, anthropic
 

@@ -13,3 +13,4 @@ matplotlib
 selenium
 webdriver-manager
 pyperclip
+undetected-chromedriver
