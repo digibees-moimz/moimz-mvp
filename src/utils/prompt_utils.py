@@ -4,13 +4,15 @@ import random
 
 # 일기 그림 생성 프롬프트 (실행할 때마다 문장들의 순서가 랜덤하게 섞임)
 def generate_diary_prompt(
-    diary_text: str, character_images: list, style_images: list
+    diary_text: str, character_images: list, style_images: list, filename_mapping: dict
 ) -> str:
     # 바뀐 파일 이름 기준으로 표시
     character_img_names = ", ".join(
-        f"{os.path.basename(p)}" for p in character_images
+        f"{os.path.basename(filename_mapping.get(p, p))}" for p in character_images
     )
-    style_img_names = ", ".join(f"{os.path.basename(p)}" for p in style_images)
+    style_img_names = ", ".join(
+        f"{os.path.basename(filename_mapping.get(p, p))}" for p in style_images
+    )
 
     static_lines = [
         "정사각형(1024x1024) 비율의 한 장짜리 모임 일기 그림을 그려줘.",
@@ -28,12 +30,7 @@ def generate_diary_prompt(
     random.shuffle(static_lines)  # 순서 섞기
     instructions = "\n\n".join(static_lines)
 
-    return f"""
-{instructions}
-
-[일기 내용]
-{diary_text}
-"""
+    return f"[일기 내용]\n{diary_text.strip()}\n\n--------------------------------------\n\n {instructions}"
 
 
 def split_image_paths(upload_paths: list):
@@ -46,6 +43,6 @@ def split_image_paths(upload_paths: list):
         )
     ]
     style_imgs = [
-        p for p in upload_paths if "happy_bright_style" in os.path.basename(p).lower()
+        p for p in upload_paths if "style" in os.path.basename(p).lower()
     ]
     return character_imgs, style_imgs

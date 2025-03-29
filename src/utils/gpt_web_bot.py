@@ -3,8 +3,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import TimeoutException
-import base64, os, time, requests, pyperclip, random, uuid, shutil
+import os, time, requests, pyperclip, random, uuid, shutil
 from PIL import Image
 
 
@@ -42,8 +41,13 @@ class GPTWebBot:
         except:
             print("⚠️ 모델 선택 생략 (이미 선택됐을 수 있음)")
 
-    # 프롬프트 전송 (프롬프트 분리 + 줄 단위 타이핑 + 이미지 업로드 후 전송)
-    def send_prompt(self, prompt: str, image_paths: list = None):
+    # 프롬프트 전송 (이미지 업로드 + 프롬프트 분리 + 타이핑 전송)
+    def send_prompt(
+        self,
+        prompt: str,
+        upload_paths: list = None,
+        temp_dir: str = "src/images/temp_uploads",
+    ):
         # 텍스트 입력창 활성화
         input_box = self.wait.until(
             EC.presence_of_element_located(
@@ -55,6 +59,17 @@ class GPTWebBot:
             random.uniform(0.5, 1.2)
         ).click().perform()
 
+        # 참고 이미지 먼저 업로드
+        if upload_paths:
+            file_input = self.wait.until(
+                EC.presence_of_element_located((By.XPATH, "//input[@type='file']"))
+            )
+            file_input.send_keys("\n".join(upload_paths))
+            # 이미지 썸네일 등장 대기
+            self.wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "img[src^='blob:']"))
+            )
+
         # 프롬프트 분리: 설명 부분 + 일기 본문
         if "[일기 내용]" in prompt:
             pre, diary = prompt.split("[일기 내용]", 1)
@@ -62,46 +77,58 @@ class GPTWebBot:
         else:
             pre, diary = prompt, ""
 
+        time.sleep(random.uniform(0.4, 0.6))
+
+        # 🐌 붙여넣기 전 채팅창 스크롤 + 멈칫
+        self.human_scroll(end=600)
+        time.sleep(random.uniform(0.2, 0.4))
+
+        # 일기 본문 클립보드로 붙여넣기
+        pyperclip.copy(diary.strip() or ".")
+        ActionChains(self.driver).move_to_element(input_box).click().perform()
+        input_box.send_keys(Keys.COMMAND, "v")
+        
+        time.sleep(random.uniform(2.5, 3.5))
+        input_box.send_keys(Keys.SHIFT, Keys.ENTER)
+
         # 설명 줄 단위로 타이핑
         for line in pre.strip().splitlines():
             self.human_type(input_box, line)
             input_box.send_keys(Keys.SHIFT, Keys.ENTER)
             time.sleep(random.uniform(0.2, 0.6))
 
-        # 🐌 붙여넣기 전 채팅창 스크롤 + 멈칫
-        self.human_scroll(end=600)
-        time.sleep(random.uniform(1.0, 2.0))
-
-        # 일기 본문 줄바꿈 후 클립보드로 붙여넣기
-        self.human_type(input_box, "\n")
-        pyperclip.copy(diary.strip() or ".")
-        input_box.send_keys(Keys.COMMAND, "v")
-
-        # 잠시 기다린 후 이미지 업로드
-        time.sleep(random.uniform(1.5, 3.0))
-
-        if image_paths:
-            path_map = self.copy_with_smart_names(image_paths)
-            file_input = self.wait.until(
-                EC.presence_of_element_located((By.XPATH, "//input[@type='file']"))
-            )
-            file_input.send_keys("\n".join(path_map.values()))
-            time.sleep(random.uniform(5, 10))
-
         # 엔터로 전송
+        time.sleep(random.uniform(1.5, 2.5))
         input_box.send_keys(Keys.ENTER)
+
+        # 전송 후 임시 폴더 삭제
+        if upload_paths and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+                print(f"🧹 이미지 업로드 후 임시 폴더 삭제 완료: {temp_dir}")
+            except Exception as e:
+                print(f"⚠️ 임시 폴더 삭제 실패: {e}")
 
     # '이미지 생성됨' 버튼 감지
     def wait_for_image_complete_button(self, timeout=300):
         print("[~] '이미지 생성됨' 버튼 대기 중...")
         start_time = time.time()
+        scrolled_for_starting = False
 
         while time.time() - start_time < timeout:
             try:
                 self.human_scroll(end=600)
                 buttons = self.driver.find_elements(By.TAG_NAME, "button")
                 for btn in buttons:
-                    if btn.text.strip() == "이미지 생성됨":
+                    text = btn.text.strip()
+
+                    if "시작하는 중" in text and not scrolled_for_starting:
+                        self.human_scroll(end=1000)
+                        print("🔄 이미지 생성 '시작하는 중' 발견! 스크롤 내리기")
+                        scrolled_for_starting = True  # 이후엔 안 내리도록 설정
+                        break
+
+                    if text == "이미지 생성됨":
                         print("[✔] '이미지 생성됨' 버튼 확인됨")
                         return True
             except Exception as e:
@@ -164,7 +191,7 @@ class GPTWebBot:
     def human_type(self, element, text: str):
         for char in text:
             element.send_keys(char)
-            time.sleep(random.uniform(0.04, 0.23))  # 자연스러운 딜레이
+            time.sleep(random.uniform(0.04, 0.18))  # 자연스러운 딜레이
 
     def human_scroll(self, end=1000, step=200):
         for i in range(0, end, step):
@@ -172,7 +199,9 @@ class GPTWebBot:
             time.sleep(random.uniform(0.3, 0.6))
 
     # 업로드할 이미지들 파일명에 랜덤 토큰 붙이고 저장
-    def copy_with_smart_names(self, image_paths: list, temp_dir="temp_uploads") -> dict:
+    def copy_with_smart_names(
+        self, image_paths: list, temp_dir="src/images/temp_uploads"
+    ) -> dict:
         # temp 디렉토리 초기화
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
@@ -187,10 +216,10 @@ class GPTWebBot:
                 name, ext = os.path.splitext(base)
                 rand = uuid.uuid4().hex[:6]
                 new_name = f"{name}_{rand}{ext}"
-                new_path = new_path = os.path.abspath(os.path.join(temp_dir, new_name))
+                new_path = os.path.abspath(os.path.join(temp_dir, new_name))
 
-                img = Image.open(path)
-                img.save(new_path)
+                img = Image.open(path).convert("RGB")  # 색상 문제 방지
+                img.save(new_path, format="PNG")  # 확실하게 PNG로 저장
 
                 mapping[path] = new_path
             except Exception as e:

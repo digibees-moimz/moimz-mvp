@@ -79,15 +79,17 @@ def generate_image_from_diary(req: DiaryRequest, request: Request):
         "src/images/dandi.png",
     ]
     style_imgs = [
-        "src/images/happy_bright_style_1.png",
-        "src/images/happy_bright_style_2.png",
+        "src/images/style1.png",
+        "src/images/style2.png",
     ]
 
-    # 3. 프롬프트 생성
-    prompt = generate_diary_prompt(req.diary_text, character_imgs, style_imgs)
+    all_imgs = character_imgs + style_imgs
+    path_map = bot.copy_with_smart_names(all_imgs)
 
+    # 3. 실제 업로드된 파일명 기준으로 프롬프트 생성
+    prompt = generate_diary_prompt(req.diary_text, character_imgs, style_imgs, path_map)
     # 4. 프롬프트 전송
-    bot.send_prompt(prompt, character_imgs + style_imgs)
+    bot.send_prompt(prompt, list(path_map.values()))
 
     # 5. 이미지 생성 완료 여부 확인 후 저장
     if bot.wait_for_image_complete_button():

@@ -12,3 +12,4 @@ __pycache__/
 
 # 셀리니움에 사용된 구글 계정 정보
 chrome_profiles/
+/src/images/temp_
