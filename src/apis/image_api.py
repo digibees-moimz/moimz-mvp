@@ -1,16 +1,13 @@
 import os
 
-from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from openai import OpenAI
 from pydantic import BaseModel
 
+router = APIRouter()
 
 # API 키 환경변수로 가져오기
-load_dotenv(dotenv_path=".env")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-router = APIRouter()
 
 
 class DiaryRequest(BaseModel):

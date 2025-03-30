@@ -1,8 +1,15 @@
+import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI
+
 from src.utils.lifespan import lifespan
 from src.apis.diary_api import router as diary_router
 from src.apis.face_api import router as face_router
 from src.apis.image_api import router as dalle_router
+
+# .env 로드
+load_dotenv(dotenv_path=".env")
 
 # lifespan 적용해서 FastAPI 앱 생성
 app = FastAPI(lifespan=lifespan)

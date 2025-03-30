@@ -1,17 +1,14 @@
 import os
 
-from dotenv import load_dotenv
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 import anthropic
 
 from src.utils.prompt_utils import generate_diary_prompt
 
-
 router = APIRouter()
 
 # API 키 환경변수로 가져오기
-load_dotenv(dotenv_path=".env")
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
 client = anthropic.Anthropic(api_key=os.getenv("CLAUDE_API_KEY"))
 

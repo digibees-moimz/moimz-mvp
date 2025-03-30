@@ -1,14 +1,10 @@
 import os
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from src.utils.driver_utils import get_driver
 from src.utils.gpt_web_bot import GPTWebBot
-
-
-load_dotenv(dotenv_path=".env")
 
 
 # 서버 시작/종료 시 실행되는 함수
