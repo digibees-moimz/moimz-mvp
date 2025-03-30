@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Request
+import os
+
 from dotenv import load_dotenv
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
+import anthropic
+
 from src.utils.prompt_utils import generate_diary_prompt
-import os, anthropic
+
 
 router = APIRouter()
 

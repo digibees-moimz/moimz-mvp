@@ -1,7 +1,8 @@
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-import undetected_chromedriver as uc
 import os
+
+import undetected_chromedriver as uc
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 
 
 # 셀레니움 사용 시 로그인을 유지하기 위함

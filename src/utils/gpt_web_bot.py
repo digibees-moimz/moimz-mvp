@@ -1,10 +1,17 @@
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.keys import Keys
-import os, time, requests, pyperclip, random, uuid, shutil
+import os
+import random
+import shutil
+import time
+import uuid
+
+import pyperclip
+import requests
 from PIL import Image
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 
 class GPTWebBot:
@@ -87,7 +94,7 @@ class GPTWebBot:
         pyperclip.copy(diary.strip() or ".")
         ActionChains(self.driver).move_to_element(input_box).click().perform()
         input_box.send_keys(Keys.COMMAND, "v")
-        
+
         time.sleep(random.uniform(2.5, 3.5))
         input_box.send_keys(Keys.SHIFT, Keys.ENTER)
 

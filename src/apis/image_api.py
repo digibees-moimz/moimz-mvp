@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from dotenv import load_dotenv
-from openai import OpenAI
 import os
+
+from dotenv import load_dotenv
+from fastapi import APIRouter, HTTPException
+from openai import OpenAI
+from pydantic import BaseModel
+
 
 # API 키 환경변수로 가져오기
 load_dotenv(dotenv_path=".env")
