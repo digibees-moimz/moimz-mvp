@@ -1,10 +1,12 @@
 import io
-import numpy as np
 from typing import Dict, Any
-from sklearn.cluster import KMeans
-from fastapi.responses import StreamingResponse
+
 import matplotlib.pyplot as plt
+import numpy as np
+from fastapi.responses import StreamingResponse
+from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
+
 
 # plt.style.use("seaborn")  # 스타일 지정
 

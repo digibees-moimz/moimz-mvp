@@ -1,24 +1,25 @@
-from fastapi import FastAPI
-from src.claude_api import create_diary
-from src.face_api import router as face_router  # 얼굴 인식 API 추가
+import os
 
-app = FastAPI()
+from dotenv import load_dotenv
+from fastapi import FastAPI
+
+from src.utils.lifespan import lifespan
+from src.apis.diary_api import router as diary_router
+from src.apis.face_api import router as face_router
+from src.apis.image_api import router as dalle_router
+
+# .env 로드
+load_dotenv(dotenv_path=".env")
+
+# lifespan 적용해서 FastAPI 앱 생성
+app = FastAPI(lifespan=lifespan)
 
 # API 라우터 등록
+app.include_router(diary_router)  # 일기(내용, 그림) 생성 API
 app.include_router(face_router)  # 얼굴 인식 API
+app.include_router(dalle_router)  # 그림 생성 API
 
 
 @app.get("/")
 def home():
     return {"message": "moimz-mvp API 서버 실행 중!"}
-
-
-# 모임일기 생성 API
-@app.post("/groups/{groupId}/diaries")
-async def create_diary_api(groupId: int, data: dict):
-    group_data = data.get("group_data", {})  # 모임 정보
-    transactions = data.get("card_transactions", [])  # 카드 결제 데이터
-
-    diary_entry = await create_diary(group_data, transactions)
-
-    return {"groupId": groupId, "diary": diary_entry}

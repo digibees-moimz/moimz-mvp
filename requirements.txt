@@ -10,3 +10,7 @@ pillow
 python-multipart
 scikit-learn
 matplotlib
+selenium
+webdriver-manager
+pyperclip
+undetected-chromedriver
