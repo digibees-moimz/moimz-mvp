@@ -9,6 +9,7 @@ import numpy as np
 from fastapi import APIRouter, UploadFile, File
 
 from src.services.face_clustering import update_user_clusters, visualize_clusters
+from src.services.person_album_clustering import run_album_clustering
 
 
 router = APIRouter()
@@ -217,7 +218,14 @@ async def check_attendance(file: UploadFile = File(...)):
         }
 
 
-# 클러스터링 시각화 API
+# 클러스터링 시각화 API (얼굴 등록)
 @router.get("/visualize_clusters/{user_id}")
 async def get_cluster_visualization(user_id: int):
     return visualize_clusters(face_db, user_id)
+
+
+# 인물별 앨범 API
+@router.post("/cluster_album")
+async def cluster_album_faces(files: List[UploadFile] = File(...)):
+    result = await run_album_clustering(files)
+    return result
