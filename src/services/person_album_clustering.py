@@ -36,7 +36,7 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
     # HDBSCAN 클러스터링 수행
 
     # 같은 사람이 최소 2번 이상 등장해야 클러스터로 인식
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=2)
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=2, metric='cosine')
     # 클러스터 번호를 리턴 (노이즈는 -1)
     labels = clusterer.fit_predict(all_face_encodings)
 
