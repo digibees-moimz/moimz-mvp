@@ -249,7 +249,13 @@ async def add_pictures(files: List[UploadFile] = File(...)):
         encodings = face_recognition.face_encodings(image, face_locations)
 
         for encoding, loc in zip(encodings, face_locations):
-            person_id = find_nearest_person(encoding)
-            results.append({"predicted_person": person_id, "location": loc})
+            person_id = find_nearest_person(encoding, file.filename, loc)
+            results.append(
+                {
+                    "predicted_person": person_id,
+                    "location": loc,
+                    "file_name": file.filename,
+                }
+            )
 
     return {"num_faces": len(results), "results": results}

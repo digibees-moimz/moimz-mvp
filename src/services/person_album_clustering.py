@@ -20,7 +20,7 @@ METADATA_PATH = os.path.join(ALBUM_DIR, "face_data.json")
 REPRESENTATIVES_PATH = os.path.join(ALBUM_DIR, "representatives.json")
 
 
-# 인물별 앨범
+# 초기 인물 클러스터링 (비지도 학습 기반, HDBSCAN)
 async def run_album_clustering(files: List[UploadFile]) -> Dict:
     all_face_encodings = []  # 전체 얼굴 벡터
     face_image_map = []  # 얼굴 벡터에 해당하는 이미지 정보 (파일명, 얼굴 좌표)
@@ -46,11 +46,12 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
         return {"message": "등록된 얼굴이 없습니다."}
 
     # HDBSCAN 클러스터링 수행
-
-    # 같은 사람이 최소 2번 이상 등장해야 클러스터로 인식
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=2, metric="cosine")
-    # 클러스터 번호를 리턴 (노이즈는 -1)
-    labels = clusterer.fit_predict(all_face_encodings)
+    clusterer = hdbscan.HDBSCAN(
+        min_cluster_size=2, metric="cosine"
+    )  # 같은 사람이 최소 2번 이상 등장해야 클러스터로 인식
+    labels = clusterer.fit_predict(
+        all_face_encodings
+    )  # 클러스터 번호를 리턴 (노이즈는 -1)
 
     clustered_result = {}  # 사진 위치 정보 저장
     cluster_vectors = {}  # 실제 얼굴 벡터 데이터 저장 (계산용 데이터)
@@ -81,8 +82,10 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
     }
 
 
-# KNN 방식의 인물 분류
-def find_nearest_person(new_encoding: np.ndarray, threshold: float = 0.45) -> str:
+# 증분 인물 분류 (KNN 방식)
+def find_nearest_person(
+    new_encoding: np.ndarray, file_name: str, location, threshold: float = 0.45
+) -> str:
     reps = load_json(REPRESENTATIVES_PATH)
 
     closest_person = None
@@ -96,6 +99,58 @@ def find_nearest_person(new_encoding: np.ndarray, threshold: float = 0.45) -> st
             closest_dist = distance
 
     if closest_dist < threshold:
-        return closest_person
+        person_id = closest_person
     else:
-        return "new_person"
+        person_id = get_new_person_id()
+
+    # 대표 벡터와 face_data 갱신
+    update_representative(person_id, new_encoding)
+    add_face_record(new_encoding, file_name, location, person_id)
+
+    return person_id
+
+
+# 새로운 얼굴 추가 함수
+def add_face_record(encoding: np.ndarray, file_name: str, location, person_id: str):
+    face_data = load_json(METADATA_PATH)
+
+    new_id = get_next_face_id(face_data)
+    face_data[new_id] = {
+        "file_name": file_name,
+        "location": location,
+        "person_id": person_id,
+        "encoding": encoding.tolist(),
+    }
+
+    save_json(METADATA_PATH, face_data)
+
+
+# 대표 벡터 갱신 함수 (생성 or 갱신)
+def update_representative(person_id: str, new_encoding: np.ndarray):
+    reps = load_json(REPRESENTATIVES_PATH)
+
+    if person_id in reps:
+        prev_vector = np.array(reps[person_id])
+        updated_vector = (prev_vector + new_encoding) / 2
+        reps[person_id] = updated_vector.tolist()
+    else:
+        reps[person_id] = new_encoding.tolist()
+
+    save_json(REPRESENTATIVES_PATH, reps)
+
+
+# 새로운 사람 ID 생성
+def get_new_person_id() -> str:
+    reps = load_json(REPRESENTATIVES_PATH)
+    existing = [
+        int(k.replace("person_", "")) for k in reps.keys() if k.startswith("person_")
+    ]
+    next_id = max(existing + [-1]) + 1
+    return f"person_{next_id}"
+
+
+# 얼굴 단위 ID 생성
+def get_next_face_id(face_data: dict) -> str:
+    existing_ids = [int(k.replace("face_", "")) for k in face_data.keys()]
+    next_id = max(existing_ids, default=-1) + 1
+    return f"face_{next_id:04}"
