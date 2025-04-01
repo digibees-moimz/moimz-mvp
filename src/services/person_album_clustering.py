@@ -1,5 +1,4 @@
 import os
-import json
 from typing import List, Dict
 
 import cv2
@@ -86,6 +85,11 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
 def find_nearest_person(
     new_encoding: np.ndarray, file_name: str, location, threshold: float = 0.45
 ) -> str:
+    # 중복 얼굴 체크
+    if is_duplicate_face(new_encoding, threshold):
+        print(f"중복 얼굴 감지: {file_name}의 얼굴은 이미 존재합니다.")
+        return "duplicate_person"
+
     reps = load_json(REPRESENTATIVES_PATH)
 
     closest_person = None
@@ -112,6 +116,10 @@ def find_nearest_person(
 
 # 새로운 얼굴 추가 함수
 def add_face_record(encoding: np.ndarray, file_name: str, location, person_id: str):
+    # 중복 얼굴인지 확인
+    if is_duplicate_face(encoding):
+        return  # 중복이면 저장하지 않고 종료
+
     face_data = load_json(METADATA_PATH)
 
     new_id = get_next_face_id(face_data)
@@ -154,3 +162,20 @@ def get_next_face_id(face_data: dict) -> str:
     existing_ids = [int(k.replace("face_", "")) for k in face_data.keys()]
     next_id = max(existing_ids, default=-1) + 1
     return f"face_{next_id:04}"
+
+
+# 기존 얼굴 벡터와 비교하여 중복 얼굴 체크
+def is_duplicate_face(new_encoding: np.ndarray, threshold: float = 0.45) -> bool:
+    face_data = load_json(METADATA_PATH)
+
+    for face_id, face_info in face_data.items():
+        # 저장된 얼굴 벡터 가져오기
+        saved_encoding = np.array(face_info["encoding"])
+
+        # 유사도 계산
+        distance = cosine(new_encoding, saved_encoding)
+
+        if distance < threshold:  # 임계값보다 유사하면 중복
+            return True
+
+    return False
