@@ -8,6 +8,7 @@ import face_recognition
 import numpy as np
 from fastapi import APIRouter, UploadFile, File
 
+from src.utils.file_io import load_json, save_json
 from src.services.face_clustering import update_user_clusters, visualize_clusters
 from src.services.person_album_clustering import (
     run_album_clustering,

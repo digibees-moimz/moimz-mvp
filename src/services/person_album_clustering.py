@@ -9,6 +9,8 @@ import hdbscan
 from fastapi import UploadFile
 from scipy.spatial.distance import cosine
 
+from src.utils.file_io import load_json, save_json
+
 
 ALBUM_DIR = os.path.join("src", "data", "album")
 os.makedirs(ALBUM_DIR, exist_ok=True)
@@ -68,8 +70,7 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
         mean_vector = np.mean(vectors, axis=0)
         representatives[person_id] = mean_vector.tolist()
 
-    with open(REPRESENTATIVES_PATH, "w") as f:
-        json.dump(representatives, f, indent=2)
+    save_json(REPRESENTATIVES_PATH, representatives)
 
     return {
         "num_faces": len(all_face_encodings),
@@ -82,8 +83,7 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
 
 # KNN 방식의 인물 분류
 def find_nearest_person(new_encoding: np.ndarray, threshold: float = 0.45) -> str:
-    with open(REPRESENTATIVES_PATH, "r") as f:
-        reps = json.load(f)
+    reps = load_json(REPRESENTATIVES_PATH)
 
     closest_person = None
     closest_dist = float("inf")
