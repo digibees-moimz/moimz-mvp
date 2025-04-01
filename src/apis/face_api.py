@@ -15,7 +15,7 @@ from src.services.person_album_clustering import run_album_clustering
 router = APIRouter()
 
 face_db = {}  # 얼굴 데이터 저장 - 임시
-FACE_DATA_DIR = os.path.join("src", "face_data")  # 얼굴 데이터 저장 폴더 경로 설정
+FACE_DATA_DIR = os.path.join("src", "data", "users")  # 얼굴 데이터 저장 폴더 경로 설정
 os.makedirs(FACE_DATA_DIR, exist_ok=True)  # 얼굴 벡터 파일 저장 디렉토리 생성
 
 

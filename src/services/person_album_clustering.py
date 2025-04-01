@@ -9,7 +9,7 @@ import hdbscan
 from fastapi import UploadFile
 
 
-ALBUM_DIR = "data/album"
+ALBUM_DIR = os.path.join("src", "data", "album")
 os.makedirs(ALBUM_DIR, exist_ok=True)
 
 ENCODING_PATH = os.path.join(ALBUM_DIR, "face_encodings.npy")
