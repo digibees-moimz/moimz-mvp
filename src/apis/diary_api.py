@@ -55,7 +55,7 @@ async def generate_diary_content(group_data, transactions):
 
 
 # 모임일기 내용 생성 API
-@router.post("/groups/{groupId}/diaries")
+@router.post("/groups/{groupId}")
 async def create_diary_content(groupId: int, data: dict):
     group_data = data.get("group_data", {})  # 모임 정보
     transactions = data.get("card_transactions", [])  # 카드 결제 데이터
@@ -66,7 +66,7 @@ async def create_diary_content(groupId: int, data: dict):
 
 
 # 셀레니움 기반 모임일기 그림 생성 API
-@router.post("/selenium/generate-image")
+@router.post("/image/selenium")
 def generate_image_from_diary(req: DiaryRequest, request: Request):
     print(req.diary_text)
 

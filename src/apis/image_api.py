@@ -46,7 +46,7 @@ def generate_dalle_image(prompt: str) -> str:
 
 
 # DALL·E 3 기반 모임 그림 생성 함수
-@router.post("/dalle/generate-image")
+@router.post("/image/dalle")
 async def generate_image(data: DiaryRequest):
     prompt = convert_diary_to_prompt(data.diary_text)
     try:
