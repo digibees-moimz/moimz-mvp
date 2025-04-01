@@ -7,6 +7,7 @@ import face_recognition
 import numpy as np
 import hdbscan
 from fastapi import UploadFile
+from scipy.spatial.distance import cosine
 
 
 ALBUM_DIR = os.path.join("src", "data", "album")
@@ -77,3 +78,24 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
         "clusters": clustered_result,
         "representatives_saved": True,
     }
+
+
+# KNN 방식의 인물 분류
+def find_nearest_person(new_encoding: np.ndarray, threshold: float = 0.45) -> str:
+    with open(REPRESENTATIVES_PATH, "r") as f:
+        reps = json.load(f)
+
+    closest_person = None
+    closest_dist = float("inf")
+
+    # 추가된 사진의 벡터와 기존 평균 벡터와 거리 비교
+    for person_id, vector in reps.items():
+        distance = cosine(new_encoding, vector)
+        if distance < closest_dist:
+            closest_person = person_id
+            closest_dist = distance
+
+    if closest_dist < threshold:
+        return closest_person
+    else:
+        return "new_person"

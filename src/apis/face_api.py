@@ -224,7 +224,7 @@ async def get_cluster_visualization(user_id: int):
     return visualize_clusters(face_db, user_id)
 
 
-# 인물별 앨범 API
+# 인물별 앨범 API (초기 일괄 분류)
 @router.post("/cluster_album")
 async def cluster_album_faces(files: List[UploadFile] = File(...)):
     result = await run_album_clustering(files)
