@@ -1,4 +1,5 @@
 import os
+import json
 from typing import List, Dict
 
 import cv2
@@ -6,6 +7,14 @@ import face_recognition
 import numpy as np
 import hdbscan
 from fastapi import UploadFile
+
+
+ALBUM_DIR = "data/album"
+os.makedirs(ALBUM_DIR, exist_ok=True)
+
+ENCODING_PATH = os.path.join(ALBUM_DIR, "face_encodings.npy")
+METADATA_PATH = os.path.join(ALBUM_DIR, "face_data.json")
+REPRESENTATIVES_PATH = os.path.join(ALBUM_DIR, "representatives.json")
 
 
 # 인물별 앨범
@@ -36,21 +45,35 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
     # HDBSCAN 클러스터링 수행
 
     # 같은 사람이 최소 2번 이상 등장해야 클러스터로 인식
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=2, metric='cosine')
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=2, metric="cosine")
     # 클러스터 번호를 리턴 (노이즈는 -1)
     labels = clusterer.fit_predict(all_face_encodings)
 
-    clustered_result = {}
+    clustered_result = {}  # 사진 위치 정보 저장
+    cluster_vectors = {}  # 실제 얼굴 벡터 데이터 저장 (계산용 데이터)
+
     for idx, label in enumerate(labels):
         info = face_image_map[idx]
         if label == -1:
             clustered_result.setdefault("noise", []).append(info)
         else:
-            clustered_result.setdefault(f"person_{label}", []).append(info)
+            person_key = f"person_{label}"
+            clustered_result.setdefault(person_key, []).append(info)
+            cluster_vectors.setdefault(person_key, []).append(encoding)
+
+    # 클러스터별 대표 벡터(평균값) 저장
+    representatives = {}
+    for person_id, vectors in cluster_vectors.items():
+        mean_vector = np.mean(vectors, axis=0)
+        representatives[person_id] = mean_vector.tolist()
+
+    with open(REPRESENTATIVES_PATH, "w") as f:
+        json.dump(representatives, f, indent=2)
 
     return {
         "num_faces": len(all_face_encodings),
         "num_clusters": len(set(labels)) - (1 if -1 in labels else 0),
         "num_noise": list(labels).count(-1),
         "clusters": clustered_result,
+        "representatives_saved": True,
     }
