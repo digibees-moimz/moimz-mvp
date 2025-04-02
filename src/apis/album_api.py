@@ -3,11 +3,12 @@ from typing import List
 import cv2
 import face_recognition
 import numpy as np
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, Query
 
 from src.services.person_album_clustering import (
     run_album_clustering,
     find_nearest_person,
+    override_person,
 )
 
 
@@ -45,3 +46,19 @@ async def add_pictures(files: List[UploadFile] = File(...)):
             )
 
     return {"num_faces": len(results), "results": results}
+
+
+# 사용자가 수동으로 인물 재지정
+@router.post("/override_person")
+async def manual_override_person(
+    face_id: str = Query(..., description="ex. face_0003"),
+    new_person_id: str = Query(..., description="ex. person_5"),
+):
+    success = override_person(face_id, new_person_id)
+
+    if success:
+        return {"message": f"{face_id} → {new_person_id}로 수동 재지정 완료되었습니다."}
+    else:
+        return {
+            "error": f"{face_id}가 존재하지 않습니다. 유효한 face_id를 확인해주세요."
+        }

@@ -199,3 +199,15 @@ def reduce_dimensions(face_encodings: np.ndarray, n_components: int = 50) -> np.
     pca = PCA(n_components=n_components)  # n_components 차원으로 축소
     reduced_encodings = pca.fit_transform(face_encodings)  # 얼굴 벡터 차원 축소
     return reduced_encodings
+
+
+# 사용자 수정사항 반영(override 필드) 추가
+def override_person(face_id: str, new_person_id: str) -> bool:
+    face_data = load_json(METADATA_PATH)
+
+    if face_id not in face_data:
+        return False  # 존재하지 않는 face_id
+
+    face_data[face_id]["override"] = new_person_id
+    save_json(METADATA_PATH, face_data)
+    return True
