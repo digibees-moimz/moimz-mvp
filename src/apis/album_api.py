@@ -51,7 +51,7 @@ async def add_pictures(files: List[UploadFile] = File(...)):
     return {"num_faces": len(results), "results": results}
 
 
-# 사용자가 수동으로 인물 재지정
+# 사용자 수정(인물 재지정)
 @router.post("/override_person")
 async def manual_override_person(
     face_id: str = Query(..., description="ex. face_0003"),

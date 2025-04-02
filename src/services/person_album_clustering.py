@@ -50,14 +50,15 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
     labels = clusterer.fit_predict(distance_matrix)
 
     clustered_result = {}  # 사진 위치 정보 저장
+    current_id = 0
     # cluster_vectors = {}  # 실제 얼굴 벡터 데이터 저장 (계산용 데이터)
 
     for idx, label in enumerate(labels):
         info = face_image_map[idx]
         cluster_key = "noise" if label == -1 else f"person_{label}"
 
-        face_data = load_json(METADATA_PATH)
-        face_id = get_next_face_id(face_data)
+        face_id = f"face_{current_id:04}"
+        current_id += 1
 
         # 저장 대상 필드만 반환 (encoding 제외)
         clustered_result.setdefault(cluster_key, []).append(
@@ -247,11 +248,25 @@ def reduce_dimensions(face_encodings: np.ndarray, n_components: int = 50) -> np.
 
 # 사용자 수정사항 반영(override 필드) 추가
 def override_person(face_id: str, new_person_id: str) -> bool:
+    # 1. 먼저 정식 저장 데이터에서 찾기
     face_data = load_json(METADATA_PATH)
+    if face_id in face_data:
+        face_data[face_id]["override"] = new_person_id
+        save_json(METADATA_PATH, face_data)
+        return True
 
-    if face_id not in face_data:
-        return False  # 존재하지 않는 face_id
+    # 2. 임시 클러스터 데이터에서 찾기
+    temp_data = load_json(TEMP_CLUSTER_PATH)
+    updated = False
 
-    face_data[face_id]["override"] = new_person_id
-    save_json(METADATA_PATH, face_data)
-    return True
+    for person_key, faces in temp_data.items():
+        for face in faces:
+            if face.get("face_id") == face_id:
+                face["override"] = new_person_id
+                updated = True
+
+    if updated:
+        save_json(TEMP_CLUSTER_PATH, temp_data)
+        return True
+
+    return False  # 어디에도 없음
