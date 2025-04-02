@@ -7,6 +7,8 @@ import numpy as np
 import hdbscan
 from fastapi import UploadFile
 from scipy.spatial.distance import cosine
+from sklearn.metrics.pairwise import pairwise_distances
+from sklearn.decomposition import PCA
 
 from src.utils.file_io import load_json, save_json
 
@@ -44,12 +46,15 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
     if not all_face_encodings:
         return {"message": "등록된 얼굴이 없습니다."}
 
+    # 거리 행렬 생성 (cosine 거리 사용)
+    distance_matrix = pairwise_distances(all_face_encodings, metric="cosine")
+
     # HDBSCAN 클러스터링 수행
     clusterer = hdbscan.HDBSCAN(
-        min_cluster_size=2, metric="cosine"
+        min_cluster_size=2, metric="precomputed"
     )  # 같은 사람이 최소 2번 이상 등장해야 클러스터로 인식
     labels = clusterer.fit_predict(
-        all_face_encodings
+        distance_matrix
     )  # 클러스터 번호를 리턴 (노이즈는 -1)
 
     clustered_result = {}  # 사진 위치 정보 저장
@@ -86,7 +91,7 @@ def find_nearest_person(
     new_encoding: np.ndarray, file_name: str, location, threshold: float = 0.45
 ) -> str:
     # 중복 얼굴 체크
-    if is_duplicate_face(new_encoding, threshold):
+    if is_duplicate_face(new_encoding):
         print(f"중복 얼굴 감지: {file_name}의 얼굴은 이미 존재합니다.")
         return "duplicate_person"
 
@@ -164,18 +169,33 @@ def get_next_face_id(face_data: dict) -> str:
     return f"face_{next_id:04}"
 
 
-# 기존 얼굴 벡터와 비교하여 중복 얼굴 체크
-def is_duplicate_face(new_encoding: np.ndarray, threshold: float = 0.45) -> bool:
+# 기존 얼굴 벡터와 비교하여 중복 얼굴 체크 (유사도가 0.95 이상일 때만 중복 처리)
+def is_duplicate_face(new_encoding: np.ndarray, threshold: float = 0.95) -> bool:
     face_data = load_json(METADATA_PATH)
 
-    for face_id, face_info in face_data.items():
-        # 저장된 얼굴 벡터 가져오기
-        saved_encoding = np.array(face_info["encoding"])
+    # PCA로 차원 축소
+    face_encodings = np.array(
+        [np.array(face_info["encoding"]) for face_info in face_data.values()]
+    )
+    # 저장된 얼굴 벡터 차원 축소
+    reduced_encodings = reduce_dimensions(face_encodings, n_components=50)
+    # 새로운 얼굴 벡터 차원 축소
+    reduced_new_encoding = reduce_dimensions(np.array([new_encoding]), n_components=50)[
+        0
+    ]
 
-        # 유사도 계산
-        distance = cosine(new_encoding, saved_encoding)
+    # 유사도 계산
+    for saved_encoding in reduced_encodings:
+        distance = cosine(saved_encoding, reduced_new_encoding)
 
-        if distance < threshold:  # 임계값보다 유사하면 중복
+        if distance < threshold:  # 유사도가 threshold보다 작으면 중복으로 간주
             return True
 
     return False
+
+
+# PCA를 사용하여 얼굴 벡터 차원 축소
+def reduce_dimensions(face_encodings: np.ndarray, n_components: int = 50) -> np.ndarray:
+    pca = PCA(n_components=n_components)  # n_components 차원으로 축소
+    reduced_encodings = pca.fit_transform(face_encodings)  # 얼굴 벡터 차원 축소
+    return reduced_encodings
