@@ -1,3 +1,4 @@
+from os.path import exists
 from typing import List, Dict
 
 import cv2
@@ -50,8 +51,20 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
     labels = clusterer.fit_predict(distance_matrix)
 
     clustered_result = {}  # 사진 위치 정보 저장
-    current_id = 0
-    # cluster_vectors = {}  # 실제 얼굴 벡터 데이터 저장 (계산용 데이터)
+    used_ids = []
+    if exists(TEMP_CLUSTER_PATH):
+        try:
+            prev_data = load_json(TEMP_CLUSTER_PATH)
+            for person_faces in prev_data.values():
+                for face in person_faces:
+                    fid = face.get("face_id")
+                    if fid and fid.startswith("face_"):
+                        used_ids.append(int(fid.replace("face_", "")))
+        except:
+            pass
+
+    current_id = max(used_ids + [-1]) + 1
+    cluster_vectors = {}  # 실제 얼굴 벡터 데이터 저장 (계산용 데이터)
 
     for idx, label in enumerate(labels):
         info = face_image_map[idx]
@@ -68,15 +81,39 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
                 "face_id": face_id,
             }
         )
-        # cluster_vectors.setdefault(person_key, []).append(encoding)
 
-    # # 클러스터별 대표 벡터(평균값) 저장
-    # representatives = {}
-    # for person_id, vectors in cluster_vectors.items():
-    #     mean_vector = np.mean(vectors, axis=0)
-    #     representatives[person_id] = mean_vector.tolist()
+        # 벡터 저장 (noise는 제외)
+        if cluster_key != "noise":
+            cluster_vectors.setdefault(person_key, []).append(encoding)
 
-    # save_json(REPRESENTATIVES_PATH, representatives)
+    # 이전 override 정보를 불러옴
+    try:
+        previous_data = load_json(TEMP_CLUSTER_PATH)
+    except FileNotFoundError:
+        previous_data = {}
+
+    # override 정보를 clustered_result에 병합
+    for person_key, faces in clustered_result.items():
+        for face in faces:
+            target_file = face.get("file_name")
+            target_loc = face.get("location")
+            # 기존 temp 데이터에 override가 존재할 경우 덮어쓰기
+            for prev_faces in previous_data.values():
+                for prev_face in prev_faces:
+                    if (
+                        prev_face.get("file_name") == target_file
+                        and prev_face.get("location") == target_loc
+                        and prev_face.get("override")
+                    ):
+                        face["override"] = prev_face["override"]
+
+    # 클러스터별 대표 벡터(평균값) 저장
+    representatives = {}
+    for person_id, vectors in cluster_vectors.items():
+        mean_vector = np.mean(vectors, axis=0)
+        representatives[person_id] = mean_vector.tolist()
+
+    save_json(REPRESENTATIVES_PATH, representatives)
 
     # 임시 저장
     save_json(TEMP_CLUSTER_PATH, clustered_result)
@@ -87,7 +124,7 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
         "num_clusters": len(set(labels)) - (1 if -1 in labels else 0),
         "num_noise": list(labels).count(-1),
         "clusters": clustered_result,
-        # "representatives_saved": True,
+        "representatives_saved": True,
     }
 
 
@@ -214,17 +251,22 @@ def get_next_face_id(face_data: dict) -> str:
     return f"face_{next_id:04}"
 
 
-# 기존 얼굴 벡터와 비교하여 중복 얼굴 체크 (유사도가 0.95 이상일 때만 중복 처리)
+# 중복 얼굴 체크 (유사도가 0.95 이상일 때만 중복 처리)
 def is_duplicate_face(new_encoding: np.ndarray, threshold: float = 0.95) -> bool:
     face_data = load_json(METADATA_PATH)
 
-    # PCA로 차원 축소
+    if not face_data:  # 저장된 얼굴이 아무것도 없는 경우
+        return False
+
     face_encodings = np.array(
         [np.array(face_info["encoding"]) for face_info in face_data.values()]
     )
-    # 저장된 얼굴 벡터 차원 축소
+
+    if len(face_encodings) == 0:  # 이중 확인
+        return False
+
+    # PCA로 차원 축소
     reduced_encodings = reduce_dimensions(face_encodings, n_components=50)
-    # 새로운 얼굴 벡터 차원 축소
     reduced_new_encoding = reduce_dimensions(np.array([new_encoding]), n_components=50)[
         0
     ]
@@ -232,7 +274,6 @@ def is_duplicate_face(new_encoding: np.ndarray, threshold: float = 0.95) -> bool
     # 유사도 계산
     for saved_encoding in reduced_encodings:
         distance = cosine(saved_encoding, reduced_new_encoding)
-
         if distance < threshold:  # 유사도가 threshold보다 작으면 중복으로 간주
             return True
 
@@ -256,17 +297,18 @@ def override_person(face_id: str, new_person_id: str) -> bool:
         return True
 
     # 2. 임시 클러스터 데이터에서 찾기
-    temp_data = load_json(TEMP_CLUSTER_PATH)
-    updated = False
+    if exists(TEMP_CLUSTER_PATH):
+        temp_data = load_json(TEMP_CLUSTER_PATH)
+        updated = False
 
-    for person_key, faces in temp_data.items():
-        for face in faces:
-            if face.get("face_id") == face_id:
-                face["override"] = new_person_id
-                updated = True
+        for person_key, faces in temp_data.items():
+            for face in faces:
+                if face.get("face_id") == face_id:
+                    face["override"] = new_person_id
+                    updated = True
 
-    if updated:
-        save_json(TEMP_CLUSTER_PATH, temp_data)
-        return True
+        if updated:
+            save_json(TEMP_CLUSTER_PATH, temp_data)
+            return True
 
     return False  # 어디에도 없음
