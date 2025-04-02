@@ -1,4 +1,3 @@
-import os
 from typing import List, Dict
 
 import cv2
@@ -11,17 +10,15 @@ from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.decomposition import PCA
 
 from src.utils.file_io import load_json, save_json
+from src.constants import (
+    METADATA_PATH,
+    REPRESENTATIVES_PATH,
+    TEMP_CLUSTER_PATH,
+    TEMP_ENCODING_PATH,
+)
 
 
-ALBUM_DIR = os.path.join("src", "data", "album")
-os.makedirs(ALBUM_DIR, exist_ok=True)
-
-ENCODING_PATH = os.path.join(ALBUM_DIR, "face_encodings.npy")
-METADATA_PATH = os.path.join(ALBUM_DIR, "face_data.json")
-REPRESENTATIVES_PATH = os.path.join(ALBUM_DIR, "representatives.json")
-
-
-# 초기 인물 클러스터링 (비지도 학습 기반, HDBSCAN)
+# 클러스터 결과만 반환 (저장은 안함) - 비지도 학습 기반, HDBSCAN
 async def run_album_clustering(files: List[UploadFile]) -> Dict:
     all_face_encodings = []  # 전체 얼굴 벡터
     face_image_map = []  # 얼굴 벡터에 해당하는 이미지 정보 (파일명, 얼굴 좌표)
@@ -40,50 +37,97 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
                 {
                     "file_name": file.filename,
                     "location": loc,  # (top, right, bottom, left)
+                    "encoding": encoding.tolist(),  # 다음 단계에 전달
                 }
             )
 
     if not all_face_encodings:
         return {"message": "등록된 얼굴이 없습니다."}
 
-    # 거리 행렬 생성 (cosine 거리 사용)
-    distance_matrix = pairwise_distances(all_face_encodings, metric="cosine")
-
     # HDBSCAN 클러스터링 수행
-    clusterer = hdbscan.HDBSCAN(
-        min_cluster_size=2, metric="precomputed"
-    )  # 같은 사람이 최소 2번 이상 등장해야 클러스터로 인식
-    labels = clusterer.fit_predict(
-        distance_matrix
-    )  # 클러스터 번호를 리턴 (노이즈는 -1)
+    distance_matrix = pairwise_distances(all_face_encodings, metric="cosine")
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=2, metric="precomputed")
+    labels = clusterer.fit_predict(distance_matrix)
 
     clustered_result = {}  # 사진 위치 정보 저장
-    cluster_vectors = {}  # 실제 얼굴 벡터 데이터 저장 (계산용 데이터)
+    # cluster_vectors = {}  # 실제 얼굴 벡터 데이터 저장 (계산용 데이터)
 
     for idx, label in enumerate(labels):
         info = face_image_map[idx]
-        if label == -1:
-            clustered_result.setdefault("noise", []).append(info)
-        else:
-            person_key = f"person_{label}"
-            clustered_result.setdefault(person_key, []).append(info)
-            cluster_vectors.setdefault(person_key, []).append(encoding)
+        cluster_key = "noise" if label == -1 else f"person_{label}"
 
-    # 클러스터별 대표 벡터(평균값) 저장
-    representatives = {}
-    for person_id, vectors in cluster_vectors.items():
-        mean_vector = np.mean(vectors, axis=0)
-        representatives[person_id] = mean_vector.tolist()
+        face_data = load_json(METADATA_PATH)
+        face_id = get_next_face_id(face_data)
 
-    save_json(REPRESENTATIVES_PATH, representatives)
+        # 저장 대상 필드만 반환 (encoding 제외)
+        clustered_result.setdefault(cluster_key, []).append(
+            {
+                "file_name": info["file_name"],
+                "location": info["location"],
+                "face_id": face_id,
+            }
+        )
+        # cluster_vectors.setdefault(person_key, []).append(encoding)
+
+    # # 클러스터별 대표 벡터(평균값) 저장
+    # representatives = {}
+    # for person_id, vectors in cluster_vectors.items():
+    #     mean_vector = np.mean(vectors, axis=0)
+    #     representatives[person_id] = mean_vector.tolist()
+
+    # save_json(REPRESENTATIVES_PATH, representatives)
+
+    # 임시 저장
+    save_json(TEMP_CLUSTER_PATH, clustered_result)
+    save_json(TEMP_ENCODING_PATH, face_image_map)
 
     return {
         "num_faces": len(all_face_encodings),
         "num_clusters": len(set(labels)) - (1 if -1 in labels else 0),
         "num_noise": list(labels).count(-1),
         "clusters": clustered_result,
-        "representatives_saved": True,
+        # "representatives_saved": True,
     }
+
+
+# 클러스터 결과를 실제로 저장하는 함수
+def save_clustered_faces(
+    cluster_data: Dict[str, List[Dict]], full_encodings: List[Dict]
+) -> Dict:
+    face_data = load_json(METADATA_PATH)
+
+    new_faces = {}
+    for person_id, faces in cluster_data.items():
+        if person_id == "noise":
+            continue  # 노이즈는 저장하지 않음
+
+        for face in faces:
+            file_name = face["file_name"]
+            location = face["location"]
+
+            # encoding 찾기
+            encoding = next(
+                (
+                    e["encoding"]
+                    for e in full_encodings
+                    if e["file_name"] == file_name and e["location"] == location
+                ),
+                None,
+            )
+            if encoding is None:
+                continue  # 못 찾으면 skip
+
+            face_id = get_next_face_id(face_data)
+            face_data[face_id] = {
+                "file_name": file_name,
+                "location": location,
+                "person_id": person_id,
+                "encoding": encoding.tolist(),
+            }
+            new_faces[face_id] = face_data[face_id]
+
+    save_json(METADATA_PATH, face_data)
+    return {"saved_faces": new_faces}
 
 
 # 증분 인물 분류 (KNN 방식)

@@ -7,9 +7,12 @@ from fastapi import APIRouter, UploadFile, File, Query
 
 from src.services.person_album_clustering import (
     run_album_clustering,
+    save_clustered_faces,
     find_nearest_person,
     override_person,
 )
+from src.constants import TEMP_CLUSTER_PATH, TEMP_ENCODING_PATH
+from src.utils.file_io import load_json
 
 
 router = APIRouter()
@@ -62,3 +65,12 @@ async def manual_override_person(
         return {
             "error": f"{face_id}가 존재하지 않습니다. 유효한 face_id를 확인해주세요."
         }
+
+
+# 클러스터링 결과 저장
+@router.post("/save_cluster")
+async def save_cluster_api():
+    cluster_data = load_json(TEMP_CLUSTER_PATH)
+    full_encodings = load_json(TEMP_ENCODING_PATH)
+
+    return save_clustered_faces(cluster_data, full_encodings)
