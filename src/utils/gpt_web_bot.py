@@ -63,6 +63,9 @@ class GPTWebBot:
                 (By.CSS_SELECTOR, "div[contenteditable='true']")
             )
         )
+        
+        # 이전 내용 초기화
+        self.driver.execute_script("arguments[0].innerText = '';", input_box)
 
         ActionChains(self.driver).move_to_element(input_box).pause(
             random.uniform(0.5, 1.2)
@@ -102,7 +105,7 @@ class GPTWebBot:
         full_prompt = pre.strip() + "\n\n[일기 내용]\n" + clean_diary
 
         print("[디버깅] 최종 프롬프트:")
-        print(clean_diary)
+        print(full_prompt)
 
         time.sleep(random.uniform(0.4, 0.6))
 
@@ -111,12 +114,6 @@ class GPTWebBot:
             random.uniform(0.5, 1.2)
         ).click().perform()
         self.human_scroll(end=600)
-
-        # 설명 줄 단위로 타이핑
-        for line in pre.strip().splitlines():
-            self.human_type(input_box, line)
-            input_box.send_keys(Keys.SHIFT, Keys.ENTER)
-            time.sleep(random.uniform(0.2, 0.6))
 
         # 전체 타이핑 한 번에
         self.human_type(input_box, full_prompt)
