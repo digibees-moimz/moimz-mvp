@@ -5,6 +5,8 @@ from pydantic import BaseModel
 import anthropic
 
 from src.utils.prompt_utils import generate_diary_prompt
+from src.utils.driver_utils import get_driver
+from src.utils.gpt_web_bot import GPTWebBot
 
 router = APIRouter()
 
@@ -70,35 +72,50 @@ async def create_diary_content(groupId: int, data: dict):
 def generate_image_from_diary(req: DiaryRequest, request: Request):
     print(req.diary_text)
 
-    # 1. main.py에서 저장해둔 bot 꺼내기
-    bot = request.app.state.bot
+    # 1. 드라이버 생성 (요청 시점에)
+    profile_name = os.getenv("GPT_PROFILE_NAME", "default_profile")
+    driver = get_driver(profile_name)
+    bot = GPTWebBot(driver)
 
-    # 2. 학습 이미지 준비
-    character_imgs = [
-        "src/images/woodi.png",
-        "src/images/ddockdi.png",
-        "src/images/dandi.png",
-    ]
-    style_imgs = [
-        "src/images/style1.png",
-        "src/images/style2.png",
-    ]
+    try:
+        bot.go_to_chatgpt()
+        bot.wait_for_login()  # 로그인 유지되면 바로 패스됨
 
-    all_imgs = character_imgs + style_imgs
-    path_map = bot.copy_with_smart_names(all_imgs)
+        # 2. 학습 이미지 준비
+        character_imgs = [
+            "src/images/woodi.png",
+            "src/images/ddockdi.png",
+            "src/images/dandi.png",
+        ]
+        style_imgs = [
+            "src/images/style1.png",
+            "src/images/style2.png",
+        ]
 
-    # 3. 실제 업로드된 파일명 기준으로 프롬프트 생성
-    prompt = generate_diary_prompt(req.diary_text, character_imgs, style_imgs, path_map)
-    # 4. 프롬프트 전송
-    bot.send_prompt(prompt, list(path_map.values()))
+        all_imgs = character_imgs + style_imgs
+        path_map = bot.copy_with_smart_names(all_imgs)
 
-    # 5. 이미지 생성 완료 여부 확인 후 저장
-    if bot.wait_for_image_complete_button():
-        image_elements = bot.wait_for_images()
-        saved_path = bot.save_best_image(image_elements, prefix="moim_diary")
-        return {
-            "message": "가장 잘된 이미지 저장 완료!" if saved_path else "저장 실패",
-            "saved_path": saved_path,
-        }
-    else:
-        return {"message": "이미지 생성이 완료되지 않았습니다.", "image_count": 0}
+        # 3. 프롬프트 생성 + 전송
+        prompt = generate_diary_prompt(
+            req.diary_text, character_imgs, style_imgs, path_map
+        )
+        bot.send_prompt(prompt, list(path_map.values()))
+
+        # 4. 이미지 생성 대기 및 저장
+        if bot.wait_for_image_complete_button():
+            image_elements = bot.wait_for_images()
+            saved_path = bot.save_best_image(image_elements, prefix="moim_diary")
+            return {
+                "message": "가장 잘된 이미지 저장 완료!" if saved_path else "저장 실패",
+                "saved_path": saved_path,
+            }
+        else:
+            return {"message": "이미지 생성이 완료되지 않았습니다.", "image_count": 0}
+
+    finally:
+        # 5. 드라이버 정리
+        try:
+            driver.quit()  # 예외가 발생하더라도 무조건 브라우저 종료
+            print("드라이버 정상 종료")
+        except Exception as e:
+            print(f"드라이버 종료 중 오류: {e}")

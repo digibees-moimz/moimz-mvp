@@ -30,7 +30,12 @@ def generate_diary_prompt(
     random.shuffle(static_lines)  # 순서 섞기
     instructions = "\n\n".join(static_lines)
 
-    return f"[일기 내용]\n{diary_text.strip()}\n\n--------------------------------------\n\n {instructions}"
+    return f"""
+{instructions}
+--------------------------------------
+[일기 내용]
+{diary_text.strip()}
+"""
 
 
 def split_image_paths(upload_paths: list):
@@ -42,7 +47,5 @@ def split_image_paths(upload_paths: list):
             for name in ["dandi", "ddockdi", "woodi"]
         )
     ]
-    style_imgs = [
-        p for p in upload_paths if "style" in os.path.basename(p).lower()
-    ]
+    style_imgs = [p for p in upload_paths if "style" in os.path.basename(p).lower()]
     return character_imgs, style_imgs

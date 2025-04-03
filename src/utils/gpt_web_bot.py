@@ -3,6 +3,7 @@ import random
 import shutil
 import time
 import uuid
+import re
 
 import pyperclip
 import requests
@@ -12,6 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import TimeoutException
 
 
 class GPTWebBot:
@@ -72,31 +74,43 @@ class GPTWebBot:
                 EC.presence_of_element_located((By.XPATH, "//input[@type='file']"))
             )
             file_input.send_keys("\n".join(upload_paths))
-            # 이미지 썸네일 등장 대기
-            self.wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "img[src^='blob:']"))
-            )
+
+            # 기존 blob 감지 → aria-label 기반으로 변경
+            try:
+                self.wait.until(
+                    EC.presence_of_element_located(
+                        (
+                            By.CSS_SELECTOR,
+                            "img[src^='blob:'], div[aria-label='Image'], div[role='img']",
+                        )
+                    )
+                )
+                print("[✔] 이미지 썸네일 감지 완료")
+            except TimeoutException:
+                print("⚠️ 이미지 썸네일 감지 실패 (30초 타임아웃)")
 
         # 프롬프트 분리: 설명 부분 + 일기 본문
         if "[일기 내용]" in prompt:
             pre, diary = prompt.split("[일기 내용]", 1)
-            diary = "[일기 내용]" + diary  # 라벨 포함
         else:
             pre, diary = prompt, ""
 
+        # 이모지 제거
+        clean_diary = GPTWebBot.remove_emojis(diary.strip() or ".")
+
+        # 전체 프롬프트 구성
+        full_prompt = pre.strip() + "\n\n[일기 내용]\n" + clean_diary
+
+        print("[디버깅] 최종 프롬프트:")
+        print(clean_diary)
+
         time.sleep(random.uniform(0.4, 0.6))
 
-        # 🐌 붙여넣기 전 채팅창 스크롤 + 멈칫
+        # 입력창 클릭 및 스크롤
+        ActionChains(self.driver).move_to_element(input_box).pause(
+            random.uniform(0.5, 1.2)
+        ).click().perform()
         self.human_scroll(end=600)
-        time.sleep(random.uniform(0.2, 0.4))
-
-        # 일기 본문 클립보드로 붙여넣기
-        pyperclip.copy(diary.strip() or ".")
-        ActionChains(self.driver).move_to_element(input_box).click().perform()
-        input_box.send_keys(Keys.COMMAND, "v")
-
-        time.sleep(random.uniform(2.5, 3.5))
-        input_box.send_keys(Keys.SHIFT, Keys.ENTER)
 
         # 설명 줄 단위로 타이핑
         for line in pre.strip().splitlines():
@@ -104,7 +118,10 @@ class GPTWebBot:
             input_box.send_keys(Keys.SHIFT, Keys.ENTER)
             time.sleep(random.uniform(0.2, 0.6))
 
-        # 엔터로 전송
+        # 전체 타이핑 한 번에
+        self.human_type(input_box, full_prompt)
+
+        # 최종 전송
         time.sleep(random.uniform(1.5, 2.5))
         input_box.send_keys(Keys.ENTER)
 
@@ -233,3 +250,23 @@ class GPTWebBot:
                 print(f"❗ 이미지 복사 실패: {e}")
 
         return mapping
+
+    @staticmethod
+    def remove_emojis(text: str) -> str:
+        emoji_pattern = re.compile(
+            "["
+            "\U0001f600-\U0001f64f"  # 😀 이모지 (감정)
+            "\U0001f300-\U0001f5ff"  # 🌩️ 기호/자연
+            "\U0001f680-\U0001f6ff"  # 🚀 교통/물건
+            "\U0001f1e0-\U0001f1ff"  # 🇰🇷 국기
+            "\U00002700-\U000027bf"  # ✂️ 기호
+            "\U0001f900-\U0001f9ff"  # 🤖 확장 이모지
+            "\U00002600-\U000026ff"  # ☀️ 기타 기호
+            "\U0001fa70-\U0001faff"  # 🪐 최신 이모지
+            "\U000025a0-\U000025ff"  # ◼️ 도형
+            "\U0001f018-\U0001f270"  # 🀄 다양한 기호
+            "\U0001f680-\U0001f6c5"  # 추가 교통 기호
+            "]+",
+            flags=re.UNICODE,
+        )
+        return emoji_pattern.sub("", text)
