@@ -89,7 +89,6 @@ def generate_image_from_diary(req: DiaryRequest, request: Request):
         ]
         style_imgs = [
             "src/images/style1.png",
-            "src/images/style2.png",
         ]
 
         all_imgs = character_imgs + style_imgs

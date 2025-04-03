@@ -63,7 +63,7 @@ class GPTWebBot:
                 (By.CSS_SELECTOR, "div[contenteditable='true']")
             )
         )
-        
+
         # 이전 내용 초기화
         self.driver.execute_script("arguments[0].innerText = '';", input_box)
 
@@ -79,18 +79,14 @@ class GPTWebBot:
             file_input.send_keys("\n".join(upload_paths))
 
             # 기존 blob 감지 → aria-label 기반으로 변경
-            try:
-                self.wait.until(
-                    EC.presence_of_element_located(
-                        (
-                            By.CSS_SELECTOR,
-                            "img[src^='blob:'], div[aria-label='Image'], div[role='img']",
-                        )
+            self.wait.until(
+                EC.presence_of_element_located(
+                    (
+                        By.CSS_SELECTOR,
+                        "img[src^='blob:'], div[aria-label='Image'], div[role='img']",
                     )
                 )
-                print("[✔] 이미지 썸네일 감지 완료")
-            except TimeoutException:
-                print("⚠️ 이미지 썸네일 감지 실패 (30초 타임아웃)")
+            )
 
         # 프롬프트 분리: 설명 부분 + 일기 본문
         if "[일기 내용]" in prompt:
