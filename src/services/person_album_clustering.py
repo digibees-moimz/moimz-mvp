@@ -84,7 +84,7 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
 
         # 벡터 저장 (noise는 제외)
         if cluster_key != "noise":
-            cluster_vectors.setdefault(person_key, []).append(encoding)
+            cluster_vectors.setdefault(cluster_key, []).append(all_face_encodings[idx])
 
     # 이전 override 정보를 불러옴
     try:
@@ -160,7 +160,9 @@ def save_clustered_faces(
                 "file_name": file_name,
                 "location": location,
                 "person_id": person_id,
-                "encoding": encoding.tolist(),
+                "encoding": (
+                    encoding if isinstance(encoding, list) else encoding.tolist()
+                ),
             }
             new_faces[face_id] = face_data[face_id]
 
