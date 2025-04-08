@@ -170,7 +170,11 @@ def save_clustered_faces(
 
 # 증분 인물 분류 (KNN 방식)
 def find_nearest_person(
-    new_encoding: np.ndarray, file_name: str, location, threshold: float = 0.45
+    new_encoding: np.ndarray,
+    file_name: str,
+    location,
+    threshold: float = 0.45,
+    save_to_storage: bool = True,
 ) -> str:
     # 중복 얼굴 체크
     if is_duplicate_face(new_encoding):
@@ -194,9 +198,10 @@ def find_nearest_person(
     else:
         person_id = get_new_person_id()
 
-    # 대표 벡터와 face_data 갱신
-    update_representative(person_id, new_encoding)
-    add_face_record(new_encoding, file_name, location, person_id)
+    # 조건부 저장
+    if save_to_storage:
+        update_representative(person_id, new_encoding)
+        add_face_record(new_encoding, file_name, location, person_id)
 
     return person_id
 
