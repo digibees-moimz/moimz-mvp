@@ -33,6 +33,10 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
         encodings = face_recognition.face_encodings(image, face_locations)
 
         for loc, encoding in zip(face_locations, encodings):
+            if is_duplicate_face(encoding, file.filename, loc):
+                print(f"중복 얼굴 건너뜀: {file.filename}, 위치 {loc}")
+                continue
+            
             all_face_encodings.append(encoding)
             face_image_map.append(
                 {
@@ -179,7 +183,7 @@ def find_nearest_person(
     save_to_storage: bool = True,
 ) -> str:
     # 중복 얼굴 체크
-    if is_duplicate_face(new_encoding):
+    if is_duplicate_face(new_encoding, file_name, location):
         print(f"중복 얼굴 감지: {file_name}의 얼굴은 이미 존재합니다.")
         return "duplicate_person"
 
@@ -211,7 +215,7 @@ def find_nearest_person(
 # 새로운 얼굴 추가 함수
 def add_face_record(encoding: np.ndarray, file_name: str, location, person_id: str):
     # 중복 얼굴인지 확인
-    if is_duplicate_face(encoding):
+    if is_duplicate_face(encoding, file_name, location):
         return  # 중복이면 저장하지 않고 종료
 
     face_data = load_json(METADATA_PATH)
@@ -270,39 +274,34 @@ def get_next_temp_face_id(temp_face_data: list) -> str:
 
 
 # 중복 얼굴 체크 (유사도가 0.95 이상일 때만 중복 처리)
-def is_duplicate_face(new_encoding: np.ndarray, threshold: float = 0.95) -> bool:
-    face_data = load_json(METADATA_PATH)
+def is_duplicate_face(
+    new_encoding: np.ndarray, file_name: str, location, threshold: float = 0.95
+) -> bool:
 
-    if not face_data:  # 저장된 얼굴이 아무것도 없는 경우
-        return False
+    for source_path in [METADATA_PATH, TEMP_ENCODING_PATH]:
+        face_data = load_json(source_path)
 
-    face_encodings = np.array(
-        [np.array(face_info["encoding"]) for face_info in face_data.values()]
-    )
+        if not face_data:
+            return False
 
-    if len(face_encodings) == 0:  # 이중 확인
-        return False
+        for face_info in (
+            face_data.values() if isinstance(face_data, dict) else face_data
+        ):
+            saved_encoding = np.array(face_info["encoding"])
+            similarity = 1 - cosine(new_encoding, saved_encoding)
 
-    # PCA로 차원 축소
-    reduced_encodings = reduce_dimensions(face_encodings, n_components=50)
-    reduced_new_encoding = reduce_dimensions(np.array([new_encoding]), n_components=50)[
-        0
-    ]
+            # 완전히 같은 사진인 경우 (파일명 + 위치까지 같음)
+            if (
+                face_info["file_name"] == file_name
+                and face_info["location"] == location
+            ):
+                return True
 
-    # 유사도 계산
-    for saved_encoding in reduced_encodings:
-        distance = cosine(saved_encoding, reduced_new_encoding)
-        if distance < threshold:  # 유사도가 threshold보다 작으면 중복으로 간주
-            return True
+            # 인물 유사도가 매우 높을 경우
+            if similarity > threshold:
+                return True
 
-    return False
-
-
-# PCA를 사용하여 얼굴 벡터 차원 축소
-def reduce_dimensions(face_encodings: np.ndarray, n_components: int = 50) -> np.ndarray:
-    pca = PCA(n_components=n_components)  # n_components 차원으로 축소
-    reduced_encodings = pca.fit_transform(face_encodings)  # 얼굴 벡터 차원 축소
-    return reduced_encodings
+    return False  # 중복 아님
 
 
 # 사용자 수정사항 반영(override 필드) 추가
