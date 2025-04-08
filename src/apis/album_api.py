@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 import cv2
@@ -10,9 +11,10 @@ from src.services.person_album_clustering import (
     save_clustered_faces,
     find_nearest_person,
     override_person,
+    get_next_temp_face_id,
 )
 from src.constants import TEMP_CLUSTER_PATH, TEMP_ENCODING_PATH
-from src.utils.file_io import load_json
+from src.utils.file_io import load_json, save_json
 
 
 router = APIRouter()
@@ -28,6 +30,9 @@ async def cluster_album_faces(files: List[UploadFile] = File(...)):
 # 인물별 앨범 API (새로운 사진을 통한 실시간 인물 분류)
 @router.post("/add_pictures")
 async def add_pictures(files: List[UploadFile] = File(...)):
+    face_image_map = load_json(TEMP_ENCODING_PATH, [])
+    clustered_result = load_json(TEMP_CLUSTER_PATH, {})
+
     results = []
 
     for file in files:
@@ -39,7 +44,28 @@ async def add_pictures(files: List[UploadFile] = File(...)):
         encodings = face_recognition.face_encodings(image, face_locations)
 
         for encoding, loc in zip(encodings, face_locations):
-            person_id = find_nearest_person(encoding, file.filename, loc)
+            person_id = find_nearest_person(
+                encoding, file.filename, loc, save_to_storage=False
+            )
+
+            face_id = get_next_temp_face_id(face_image_map)
+            face_record = {
+                "file_name": file.filename,
+                "location": loc,
+                "face_id": face_id,
+                "predicted_person": person_id,
+                "encoding": encoding.tolist(),
+            }
+
+            face_image_map.append(face_record)
+            clustered_result.setdefault(person_id, []).append(
+                {
+                    "file_name": file.filename,
+                    "location": loc,
+                    "face_id": face_id,
+                }
+            )
+
             results.append(
                 {
                     "predicted_person": person_id,
@@ -47,6 +73,9 @@ async def add_pictures(files: List[UploadFile] = File(...)):
                     "file_name": file.filename,
                 }
             )
+
+    save_json(TEMP_ENCODING_PATH, face_image_map)
+    save_json(TEMP_CLUSTER_PATH, clustered_result)
 
     return {"num_faces": len(results), "results": results}
 
@@ -68,9 +97,18 @@ async def manual_override_person(
 
 
 # 클러스터링 결과 저장
-@router.post("/save_cluster")
-async def save_cluster_api():
-    cluster_data = load_json(TEMP_CLUSTER_PATH)
-    full_encodings = load_json(TEMP_ENCODING_PATH)
+@router.post("/confirm_save")
+async def confirm_save():
+    cluster_data = load_json(TEMP_CLUSTER_PATH, {})
+    full_encodings = load_json(TEMP_ENCODING_PATH, [])
 
-    return save_clustered_faces(cluster_data, full_encodings)
+    result = save_clustered_faces(cluster_data, full_encodings)
+
+    # 임시 데이터 삭제
+    os.remove(TEMP_CLUSTER_PATH)
+    os.remove(TEMP_ENCODING_PATH)
+
+    return {
+        "message": "임시 데이터를 정식 저장소로 이동 완료했습니다.",
+        "saved": result,
+    }

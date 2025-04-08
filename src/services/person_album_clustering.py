@@ -251,6 +251,17 @@ def get_next_face_id(face_data: dict) -> str:
     return f"face_{next_id:04}"
 
 
+# 얼굴 단위 임시 ID 생성
+def get_next_temp_face_id(temp_face_data: list) -> str:
+    existing_ids = [
+        int(face["face_id"].replace("face_", ""))
+        for face in temp_face_data
+        if "face_id" in face
+    ]
+    next_id = max(existing_ids, default=-1) + 1
+    return f"face_{next_id:04}"
+
+
 # 중복 얼굴 체크 (유사도가 0.95 이상일 때만 중복 처리)
 def is_duplicate_face(new_encoding: np.ndarray, threshold: float = 0.95) -> bool:
     face_data = load_json(METADATA_PATH)
