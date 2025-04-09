@@ -19,6 +19,68 @@ from src.constants import (
 )
 
 
+async def add_incremental_faces(files: List[UploadFile]) -> Dict:
+    face_image_map = load_json(TEMP_ENCODING_PATH, [])
+    clustered_result = load_json(TEMP_CLUSTER_PATH, {})
+    results = []
+
+    for file in files:
+        image_bytes = await file.read()
+        image_np = np.frombuffer(image_bytes, np.uint8)
+        image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+
+        face_locations = face_recognition.face_locations(image)
+        encodings = face_recognition.face_encodings(image, face_locations)
+
+        for encoding, loc in zip(encodings, face_locations):
+            if is_duplicate_face(encoding, file.filename, loc):
+                print(f"중복 얼굴 건너뜀: {file.filename}, 위치 {loc}")
+                continue
+
+            # 최근접 대표 벡터 기반 분류
+            person_id = find_nearest_person(
+                encoding, file.filename, loc, save_to_storage=False  # TEMP에만 저장
+            )
+
+            # 얼굴 ID 생성
+            face_id = get_next_temp_face_id(face_image_map)
+
+            # TEMP 저장용 레코드
+            face_record = {
+                "file_name": file.filename,
+                "location": loc,
+                "face_id": face_id,
+                "predicted_person": person_id,
+                "encoding": encoding.tolist(),
+            }
+
+            # TEMP_ENCODING_PATH에 저장
+            face_image_map.append(face_record)
+
+            # TEMP_CLUSTER_PATH에 저장
+            clustered_result.setdefault(person_id, []).append(
+                {
+                    "file_name": file.filename,
+                    "location": loc,
+                    "face_id": face_id,
+                }
+            )
+
+            results.append(
+                {
+                    "predicted_person": person_id,
+                    "location": loc,
+                    "file_name": file.filename,
+                }
+            )
+
+    # 저장
+    save_json(TEMP_ENCODING_PATH, face_image_map)
+    save_json(TEMP_CLUSTER_PATH, clustered_result)
+
+    return {"num_faces": len(results), "results": results}
+
+
 # 클러스터 결과만 반환 (저장은 안함) - 비지도 학습 기반, HDBSCAN
 async def run_album_clustering(files: List[UploadFile]) -> Dict:
     all_face_encodings = []  # 전체 얼굴 벡터
@@ -36,7 +98,7 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
             if is_duplicate_face(encoding, file.filename, loc):
                 print(f"중복 얼굴 건너뜀: {file.filename}, 위치 {loc}")
                 continue
-            
+
             all_face_encodings.append(encoding)
             face_image_map.append(
                 {
