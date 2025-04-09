@@ -1,3 +1,4 @@
+import os
 from typing import Dict
 
 import numpy as np
@@ -5,6 +6,7 @@ from scipy.spatial.distance import cosine
 
 from src.utils.file_io import load_json
 from src.constants import (
+    ALBUM_DIR,
     METADATA_PATH,
     REPRESENTATIVES_PATH,
     TEMP_ENCODING_PATH,
@@ -16,8 +18,12 @@ def get_thumbnail_map() -> Dict[str, Dict]:
     metadata = load_json(METADATA_PATH)
     temp_faces = load_json(TEMP_ENCODING_PATH, [])
 
-    # 형식 통일
-    all_faces = list(metadata.values()) + temp_faces
+    # 타입 검사 및 통일
+    metadata_faces = list(metadata.values()) if isinstance(metadata, dict) else metadata
+    temp_faces = (
+        list(temp_faces.values()) if isinstance(temp_faces, dict) else temp_faces
+    )
+    all_faces = metadata_faces + temp_faces
 
     # 대표 벡터 불러오기
     reps = load_json(REPRESENTATIVES_PATH)
@@ -51,3 +57,7 @@ def get_thumbnail_map() -> Dict[str, Dict]:
             thumbnail_map[person_id] = thumbnail_face
 
     return thumbnail_map
+
+
+def get_image_path(person_id: str, file_name: str) -> str:
+    return os.path.join(ALBUM_DIR, person_id, file_name)

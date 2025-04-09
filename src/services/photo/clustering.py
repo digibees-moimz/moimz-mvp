@@ -139,7 +139,10 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
 
         face_id = f"face_{current_id:04}"
         current_id += 1
-
+        
+        info["face_id"] = face_id
+        info["predicted_person"] = cluster_key 
+        
         # 저장 대상 필드만 반환 (encoding 제외)
         clustered_result.setdefault(cluster_key, []).append(
             {
@@ -312,11 +315,11 @@ def update_representative(person_id: str, new_encoding: np.ndarray):
 
     # 대표 벡터는 최근 N개 평균
     new_mean = np.mean(np.array(vector_history), axis=0)
-    
+
     # 저장
     data[person_id] = new_mean.tolist()
     data[history_key] = list(vector_history)
-    
+
     save_json(REPRESENTATIVES_PATH, data)
 
 
