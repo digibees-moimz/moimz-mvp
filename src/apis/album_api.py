@@ -10,7 +10,7 @@ from src.services.photo.clustering import (
     save_clustered_faces,
     override_person,
 )
-from src.constants import TEMP_CLUSTER_PATH, TEMP_ENCODING_PATH
+from src.constants import TEMP_CLUSTER_PATH, TEMP_ENCODING_PATH, METADATA_PATH
 from src.utils.file_io import load_json
 
 router = APIRouter()
@@ -58,4 +58,39 @@ async def confirm_save():
     return {
         "message": "임시 데이터를 정식 저장소로 이동 완료했습니다.",
         "saved": result,
+    }
+
+# 특정 인물의 사진 리스트 조회 API 
+@router.get("/people/{person_id}")
+def get_person_faces(person_id: str):
+    # 정식 저장된 얼굴 정보 불러오기 (dict)
+    metadata = load_json(METADATA_PATH, {})
+    metadata_faces = [
+        {
+            "file_name": v["file_name"],
+            "location": v["location"],
+            "face_id": k,
+        }
+        for k, v in metadata.items()
+        if v.get("person_id") == person_id
+    ]
+
+    # 임시 저장된 얼굴 정보 불러오기 (list)
+    temp_faces = load_json(TEMP_ENCODING_PATH, [])
+    temp_person_faces = [
+        {
+            "file_name": f["file_name"],
+            "location": f["location"],
+            "face_id": f.get("face_id"),
+        }
+        for f in temp_faces
+        if f.get("predicted_person") == person_id
+    ]
+
+    all_faces = metadata_faces + temp_person_faces
+
+    return {
+        "person_id": person_id,
+        "num_faces": len(all_faces),
+        "faces": all_faces,
     }

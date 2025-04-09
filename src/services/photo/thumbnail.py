@@ -12,17 +12,17 @@ from src.constants import (
 
 
 def get_thumbnail_map() -> Dict[str, Dict]:
-    # 1. 정식 저장된 얼굴 정보 + 임시 얼굴 정보 불러오기
+    # 정식 저장 + 임시 저장된 얼굴 데이터 불러오기
     metadata = load_json(METADATA_PATH)
     temp_faces = load_json(TEMP_ENCODING_PATH, [])
 
-    # metadata는 dict, temp_faces는 list니까 통일
+    # 형식 통일
     all_faces = list(metadata.values()) + temp_faces
 
-    # 2. 대표 벡터 불러오기
+    # 대표 벡터 불러오기
     reps = load_json(REPRESENTATIVES_PATH)
 
-    # 3. 각 person_id마다 가장 유사한 얼굴을 고름
+    # 각 person_id마다 가장 유사한 얼굴을 고름
     thumbnail_map = {}
 
     for person_id, rep_vec in reps.items():
