@@ -1,9 +1,10 @@
 import os
 from typing import List
+from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Query
 
-from services.photo.clustering import (
+from src.services.photo.clustering import (
     add_incremental_faces,
     run_album_clustering,
     save_clustered_faces,
@@ -18,7 +19,7 @@ router = APIRouter()
 # 사진 업로드 시 인물별 자동 분류 API
 @router.post("/upload")
 async def upload_faces(files: List[UploadFile] = File(...)):
-    if not TEMP_CLUSTER_PATH.exists():
+    if not Path(TEMP_CLUSTER_PATH).exists():
         # 처음 업로드면 클러스터링
         return await run_album_clustering(files)
     else:
