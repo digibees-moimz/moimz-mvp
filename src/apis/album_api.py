@@ -3,7 +3,7 @@ from typing import List
 
 from fastapi import APIRouter, UploadFile, File, Query
 
-from src.services.person_album_clustering import (
+from services.photo.clustering import (
     add_incremental_faces,
     run_album_clustering,
     save_clustered_faces,
