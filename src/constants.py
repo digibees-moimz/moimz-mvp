@@ -8,3 +8,5 @@ METADATA_PATH = os.path.join(ALBUM_DIR, "face_data.json")
 REPRESENTATIVES_PATH = os.path.join(ALBUM_DIR, "representatives.json")
 TEMP_CLUSTER_PATH = os.path.join(ALBUM_DIR, "temp_cluster_result.json")
 TEMP_ENCODING_PATH = os.path.join(ALBUM_DIR, "temp_encodings.json")
+
+RECENT_VECTOR_COUNT = 10

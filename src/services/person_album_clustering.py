@@ -6,9 +6,9 @@ import face_recognition
 import numpy as np
 import hdbscan
 from fastapi import UploadFile
+from collections import deque
 from scipy.spatial.distance import cosine
 from sklearn.metrics.pairwise import pairwise_distances
-from sklearn.decomposition import PCA
 
 from src.utils.file_io import load_json, save_json
 from src.constants import (
@@ -16,6 +16,7 @@ from src.constants import (
     REPRESENTATIVES_PATH,
     TEMP_CLUSTER_PATH,
     TEMP_ENCODING_PATH,
+    RECENT_VECTOR_COUNT,
 )
 
 
@@ -293,18 +294,30 @@ def add_face_record(encoding: np.ndarray, file_name: str, location, person_id: s
     save_json(METADATA_PATH, face_data)
 
 
-# 대표 벡터 갱신 함수 (생성 or 갱신)
+# 대표 벡터 갱신 함수 (최근 N개의 벡터를 평균)
 def update_representative(person_id: str, new_encoding: np.ndarray):
-    reps = load_json(REPRESENTATIVES_PATH)
-
-    if person_id in reps:
-        prev_vector = np.array(reps[person_id])
-        updated_vector = (prev_vector + new_encoding) / 2
-        reps[person_id] = updated_vector.tolist()
+    # 벡터 히스토리 불러오기 (없으면 새로 생성)
+    if REPRESENTATIVES_PATH.exists():
+        data = load_json(REPRESENTATIVES_PATH)
     else:
-        reps[person_id] = new_encoding.tolist()
+        data = {}
 
-    save_json(REPRESENTATIVES_PATH, reps)
+    # 히스토리 키 설정
+    history_key = f"{person_id}_history"
+    history_list = data.get(history_key, [])
+
+    # deque로 변환해서 최대 길이 제한
+    vector_history = deque(history_list, maxlen=RECENT_VECTOR_COUNT)
+    vector_history.append(new_encoding.tolist())
+
+    # 대표 벡터는 최근 N개 평균
+    new_mean = np.mean(np.array(vector_history), axis=0)
+    
+    # 저장
+    data[person_id] = new_mean.tolist()
+    data[history_key] = list(vector_history)
+    
+    save_json(REPRESENTATIVES_PATH, data)
 
 
 # 새로운 사람 ID 생성
