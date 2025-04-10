@@ -19,6 +19,7 @@ from src.services.photo.storage import (
     save_image_to_album,
     generate_unique_filename,
     is_duplicate_image,
+    get_all_uploaded_images,
 )
 from src.services.photo.thumbnail import get_thumbnail_map
 from src.services.photo.storage import get_image_path
@@ -98,7 +99,7 @@ async def confirm_save():
 
 
 # 특정 인물의 사진 리스트 조회 API
-@router.get("/people/{person_id}")
+@router.get("/albums/{person_id}")
 def get_person_faces(person_id: str):
     # 정식 저장된 얼굴 정보
     metadata = load_json(METADATA_PATH, {})
@@ -136,26 +137,41 @@ def get_person_faces(person_id: str):
 
 
 # 인물별 앨범 리스트 조회 API
-@router.get("/persons")
-def list_persons():
+@router.get("/albums")
+def list_albums():
     thumbnail_map = get_thumbnail_map()
+    all_photos = get_all_uploaded_images()
 
-    person_list = [
+    # 전체 앨범 (썸네일은 최신 파일 하나)
+    full_album = {
+        "album_id": "all_photos",
+        "type": "all",
+        "title": "전체 사진",
+        "count": len(all_photos),
+        "thumbnail": {
+            "url": f"/images/{all_photos[-1]}" if all_photos else None,
+            "file_name": all_photos[-1] if all_photos else None,
+        },
+    }
+
+    # 인물별 앨범
+    person_albums = [
         {
-            "person_id": person_id,
+            "album_id": person_id,
+            "type": "person",
+            "title": person_id,
             "face_id": face["face_id"],
-            "file_name": face["file_name"],
             "thumbnail": {
                 "url": f"/persons/{person_id}/thumbnail",
                 "file_name": face["file_name"],
-                "location": face["location"],  # 썸네일 이미지 crop에 사용
+                "location": face["location"],
                 "face_id": face.get("face_id"),
             },
         }
         for person_id, face in thumbnail_map.items()
     ]
 
-    return {"persons": person_list}
+    return {"albums": [full_album] + person_albums}
 
 
 # 썸네일 반환 API

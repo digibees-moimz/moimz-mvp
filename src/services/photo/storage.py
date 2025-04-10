@@ -2,7 +2,9 @@ import os
 import cv2
 import uuid
 import hashlib
+from typing import List
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 from fastapi import UploadFile
@@ -54,3 +56,17 @@ def is_duplicate_image(image_bytes: bytes) -> bool:
         hash_list.append(image_hash)
         save_json(IMAGE_HASH_PATH, hash_list)
         return False
+
+
+# 전체 업로드된 사진 리스트 조회
+def get_all_uploaded_images() -> List[str]:
+    uploaded_dir = Path(ALBUM_DIR) / "uploaded"
+    if not uploaded_dir.exists():
+        return []
+
+    image_files = [
+        f.name
+        for f in uploaded_dir.glob("*")
+        if f.is_file() and f.suffix.lower() in [".jpg", ".jpeg", ".png"]
+    ]
+    return sorted(image_files)
