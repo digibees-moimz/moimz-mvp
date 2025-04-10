@@ -6,7 +6,6 @@ from scipy.spatial.distance import cosine
 
 from src.utils.file_io import load_json
 from src.constants import (
-    ALBUM_DIR,
     METADATA_PATH,
     REPRESENTATIVES_PATH,
     TEMP_ENCODING_PATH,
@@ -59,5 +58,3 @@ def get_thumbnail_map() -> Dict[str, Dict]:
     return thumbnail_map
 
 
-def get_image_path(person_id: str, file_name: str) -> str:
-    return os.path.join(ALBUM_DIR, person_id, file_name)

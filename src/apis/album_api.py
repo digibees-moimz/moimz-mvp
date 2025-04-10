@@ -13,8 +13,10 @@ from src.services.photo.clustering import (
     save_clustered_faces,
     override_person,
 )
-from src.services.photo.thumbnail import get_thumbnail_map, get_image_path
+from src.services.photo.thumbnail import get_thumbnail_map
+from src.services.photo.storage import get_image_path
 from src.constants import (
+    ALBUM_DIR,
     TEMP_CLUSTER_PATH,
     TEMP_ENCODING_PATH,
     METADATA_PATH,
@@ -72,25 +74,27 @@ async def confirm_save():
 # 특정 인물의 사진 리스트 조회 API
 @router.get("/people/{person_id}")
 def get_person_faces(person_id: str):
-    # 정식 저장된 얼굴 정보 불러오기 (dict)
+    # 정식 저장된 얼굴 정보
     metadata = load_json(METADATA_PATH, {})
     metadata_faces = [
         {
             "file_name": v["file_name"],
             "location": v["location"],
             "face_id": k,
+            "image_url": f"/images/{v['file_name']}",
         }
         for k, v in metadata.items()
         if v.get("person_id") == person_id
     ]
 
-    # 임시 저장된 얼굴 정보 불러오기 (list)
+    # 임시 저장된 얼굴 정보
     temp_faces = load_json(TEMP_ENCODING_PATH, [])
     temp_person_faces = [
         {
             "file_name": f["file_name"],
             "location": f["location"],
             "face_id": f.get("face_id"),
+            "image_url": f"/images/{f['file_name']}",
         }
         for f in temp_faces
         if f.get("predicted_person") == person_id
@@ -140,7 +144,7 @@ def get_person_thumbnail(person_id: str):
 
     # 이미지 파일 열기
     file_name = thumbnail["file_name"]
-    image_path = get_image_path(person_id, file_name)
+    image_path = get_image_path(file_name)
     image = cv2.imread(image_path)
     if not Path(image_path).exists():
         return {"error": "이미지 파일이 존재하지 않습니다."}
@@ -150,4 +154,17 @@ def get_person_thumbnail(person_id: str):
     cropped = image[top:bottom, left:right]
 
     _, buffer = cv2.imencode(".jpg", cropped)
+    return StreamingResponse(io.BytesIO(buffer.tobytes()), media_type="image/jpeg")
+
+
+# 전체 이미지 조회 API
+@router.get("/images/{file_name}")
+def serve_uploaded_image(file_name: str):
+    image_path = os.path.join(ALBUM_DIR, "uploaded", file_name)
+
+    if not Path(image_path).exists():
+        return {"error": "이미지 파일이 존재하지 않습니다."}
+
+    image = cv2.imread(str(image_path))
+    _, buffer = cv2.imencode(".jpg", image)
     return StreamingResponse(io.BytesIO(buffer.tobytes()), media_type="image/jpeg")
