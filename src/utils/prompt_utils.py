@@ -23,14 +23,19 @@ def generate_diary_prompt(
         "표정과 감정 표현은 첨부한 이미지를 참고해서 다양하게 그려주고, 상황과 장소에 맞는 악세사리나 소품, 옷도 추가해줘.",
         "그림에 글자는 되도록 적지 마.",
         "그림은 컷으로 분리하지 말고 일기 내용을 한 눈에 알아볼 수 있도록 한 장의 그림으로 표현해야 해.",
-        "일기의 주요 내용을 잘 표현하도록 하나의 그림에 그리고, 나머지 부가 내용들은 추억할 수 있게 주변(빈 공간)에 소품이나 이모티콘으로 그려줘.",
+        "일기의 주요 내용을 잘 표현하도록 하나의 그림에 그리고, 나머지 부가 내용들은 추억할 수 있게 주변(빈 공간)에 소품으로 그려줘.",
         "일기에 적힌 장소가 잘 표현되게 그려주면 좋겠어",
     ]
 
     random.shuffle(static_lines)  # 순서 섞기
     instructions = "\n\n".join(static_lines)
 
-    return f"[일기 내용]\n{diary_text.strip()}\n\n--------------------------------------\n\n {instructions}"
+    return f"""
+{instructions}
+--------------------------------------
+[일기 내용]
+{diary_text.strip()}
+"""
 
 
 def split_image_paths(upload_paths: list):
@@ -42,7 +47,5 @@ def split_image_paths(upload_paths: list):
             for name in ["dandi", "ddockdi", "woodi"]
         )
     ]
-    style_imgs = [
-        p for p in upload_paths if "style" in os.path.basename(p).lower()
-    ]
+    style_imgs = [p for p in upload_paths if "style" in os.path.basename(p).lower()]
     return character_imgs, style_imgs
