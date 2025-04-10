@@ -10,5 +10,6 @@ def load_json(path: str, default=None) -> dict:
 
 
 def save_json(path: str, data: dict, indent: int = 2):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
         json.dump(data, f, indent=indent)

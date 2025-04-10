@@ -4,14 +4,21 @@ import cv2
 from typing import List
 from pathlib import Path
 
+import numpy as np
 from fastapi import APIRouter, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 
+from src.utils.file_io import load_json
 from src.services.photo.clustering import (
     add_incremental_faces,
     run_album_clustering,
     save_clustered_faces,
     override_person,
+)
+from src.services.photo.storage import (
+    save_image_to_album,
+    generate_unique_filename,
+    is_duplicate_image,
 )
 from src.services.photo.thumbnail import get_thumbnail_map
 from src.services.photo.storage import get_image_path
@@ -28,13 +35,32 @@ router = APIRouter()
 
 # 사진 업로드 시 인물별 자동 분류 API
 @router.post("/upload")
-async def upload_faces(files: List[UploadFile] = File(...)):
+async def upload_photos(files: List[UploadFile] = File(...)):
+    saved_files = []
+
+    for file in files:
+        image_bytes = await file.read()
+        image_np = np.frombuffer(image_bytes, np.uint8)
+        image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+
+        # 완전 동일 이미지 중복 제거
+        if is_duplicate_image(image_bytes):
+            print(f"⚠️ 완전 동일 사진 건너뜀: {file.filename}")
+            continue
+
+        # 고유 파일명 생성 및 저장
+        saved_filename = generate_unique_filename(file.filename)
+        save_image_to_album(file, image, saved_filename)
+
+        saved_files.append({"file": file, "image": image, "filename": saved_filename})
+
+    # 저장된 이미지 기반으로 분류 실행
     if not Path(TEMP_CLUSTER_PATH).exists():
         # 처음 업로드면 클러스터링
-        return await run_album_clustering(files)
+        return await run_album_clustering(saved_files)
     else:
         # 이미 임시 데이터가 있다면 증분 분류
-        return await add_incremental_faces(files)
+        return await add_incremental_faces(saved_files)
 
 
 # 사용자 수정(인물 재지정)

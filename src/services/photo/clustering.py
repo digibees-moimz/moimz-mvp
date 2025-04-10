@@ -26,29 +26,23 @@ from src.constants import (
 
 
 # 추가 사진 클러스터링 - KNN 방식
-async def add_incremental_faces(files: List[UploadFile]) -> Dict:
+async def add_incremental_faces(files: List[Dict]) -> Dict:
     face_image_map = load_json(TEMP_ENCODING_PATH, [])
     clustered_result = load_json(TEMP_CLUSTER_PATH, {})
     results = []
-    saved_files = {}
 
-    for file in files:
-        image_bytes = await file.read()
-        if is_duplicate_image(image_bytes):
-            print(f"⚠️ 완전 동일 사진 건너뜀: {file.filename}")
-            continue
-        image_np = np.frombuffer(image_bytes, np.uint8)
-        image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+    for file_info in files:
+        file = file_info["file"]
+        image = file_info["image"]
+        saved_filename = file_info["filename"]
 
         face_locations = face_recognition.face_locations(image)
         encodings = face_recognition.face_encodings(image, face_locations)
 
-        saved_filename = generate_unique_filename(file.filename)
-
         for encoding, loc in zip(encodings, face_locations):
             # 최근접 대표 벡터 기반 분류
             person_id = find_nearest_person(
-                encoding, file.filename, loc, save_to_storage=False  # TEMP에만 저장
+                encoding, saved_filename, loc, save_to_storage=False  # TEMP에만 저장
             )
 
             # 얼굴 ID 생성
@@ -81,7 +75,6 @@ async def add_incremental_faces(files: List[UploadFile]) -> Dict:
                     "file_name": saved_filename,
                 }
             )
-        saved_filename = save_image_to_album(file, image, saved_filename)
 
     # 저장
     save_json(TEMP_ENCODING_PATH, face_image_map)
@@ -91,27 +84,20 @@ async def add_incremental_faces(files: List[UploadFile]) -> Dict:
 
 
 # 클러스터 결과만 반환 (저장은 안함) - 비지도 학습 기반, HDBSCAN
-async def run_album_clustering(files: List[UploadFile]) -> Dict:
+async def run_album_clustering(files: List[Dict]) -> Dict:
     all_face_encodings = []  # 전체 얼굴 벡터
     face_image_map = []  # 얼굴 벡터에 해당하는 이미지 정보 (파일명, 얼굴 좌표)
 
-    for file in files:
-        image_bytes = await file.read()
-        if is_duplicate_image(image_bytes):
-            print(f"⚠️ 완전 동일 사진 건너뜀: {file.filename}")
-            continue
-
-        image_np = np.frombuffer(image_bytes, np.uint8)
-        image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+    for file_info in files:
+        file = file_info["file"]
+        image = file_info["image"]
+        saved_filename = file_info["filename"]
 
         face_locations = face_recognition.face_locations(image)
         encodings = face_recognition.face_encodings(image, face_locations)
 
         if not encodings:
             continue  # 얼굴이 없으면 패스
-
-        # 고유 파일명 먼저 생성
-        saved_filename = generate_unique_filename(file.filename)
 
         for loc, encoding in zip(face_locations, encodings):
             all_face_encodings.append(encoding)
@@ -122,9 +108,7 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
                     "encoding": encoding.tolist(),  # 다음 단계에 전달
                 }
             )
-        # 이미지 저장은 마지막에 한 번만
-        save_image_to_album(file, image, saved_filename)
-
+            
     if not all_face_encodings:
         return {"message": "등록된 얼굴이 없습니다."}
 
