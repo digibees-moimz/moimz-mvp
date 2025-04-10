@@ -11,7 +11,11 @@ from scipy.spatial.distance import cosine
 from sklearn.metrics.pairwise import pairwise_distances
 
 from src.utils.file_io import load_json, save_json
-from src.services.photo.storage import save_image_to_album, generate_unique_filename
+from src.services.photo.storage import (
+    save_image_to_album,
+    generate_unique_filename,
+    is_duplicate_image,
+)
 from src.constants import (
     METADATA_PATH,
     REPRESENTATIVES_PATH,
@@ -30,6 +34,9 @@ async def add_incremental_faces(files: List[UploadFile]) -> Dict:
 
     for file in files:
         image_bytes = await file.read()
+        if is_duplicate_image(image_bytes):
+            print(f"⚠️ 완전 동일 사진 건너뜀: {file.filename}")
+            continue
         image_np = np.frombuffer(image_bytes, np.uint8)
         image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
 
@@ -39,10 +46,6 @@ async def add_incremental_faces(files: List[UploadFile]) -> Dict:
         saved_filename = generate_unique_filename(file.filename)
 
         for encoding, loc in zip(encodings, face_locations):
-            if is_duplicate_face(encoding, loc):
-                print(f"중복 얼굴 건너뜀: {file.filename}, 위치 {loc}")
-                continue
-
             # 최근접 대표 벡터 기반 분류
             person_id = find_nearest_person(
                 encoding, file.filename, loc, save_to_storage=False  # TEMP에만 저장
@@ -94,6 +97,10 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
 
     for file in files:
         image_bytes = await file.read()
+        if is_duplicate_image(image_bytes):
+            print(f"⚠️ 완전 동일 사진 건너뜀: {file.filename}")
+            continue
+
         image_np = np.frombuffer(image_bytes, np.uint8)
         image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
 
@@ -107,10 +114,6 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
         saved_filename = generate_unique_filename(file.filename)
 
         for loc, encoding in zip(face_locations, encodings):
-            if is_duplicate_face(encoding, loc):
-                print(f"중복 얼굴 건너뜀: {file.filename}, 위치 {loc}")
-                continue
-
             all_face_encodings.append(encoding)
             face_image_map.append(
                 {
@@ -261,11 +264,6 @@ def find_nearest_person(
     threshold: float = 0.45,
     save_to_storage: bool = True,
 ) -> str:
-    # 중복 얼굴 체크
-    if is_duplicate_face(new_encoding, location):
-        print(f"중복 얼굴 감지: {file_name}의 얼굴은 이미 존재합니다.")
-        return "duplicate_person"
-
     reps = load_json(REPRESENTATIVES_PATH)
 
     closest_person = None
@@ -293,10 +291,6 @@ def find_nearest_person(
 
 # 새로운 얼굴 추가 함수
 def add_face_record(encoding: np.ndarray, file_name: str, location, person_id: str):
-    # 중복 얼굴인지 확인
-    if is_duplicate_face(encoding, location):
-        return  # 중복이면 저장하지 않고 종료
-
     face_data = load_json(METADATA_PATH)
 
     new_id = get_next_face_id(face_data)
@@ -369,10 +363,6 @@ def is_duplicate_face(
     new_encoding: np.ndarray, location, threshold: float = 0.95
 ) -> bool:
 
-    print("⚡️중복 검사 진입")
-    print("▶︎ new_encoding[:5]:", new_encoding[:5])
-    print("▶︎ location:", location)
-
     for source_path in [METADATA_PATH, TEMP_ENCODING_PATH]:
         face_data = load_json(source_path)
         print(f"→ 검사 대상: {source_path}, 얼굴 수: {len(face_data)}")
@@ -388,10 +378,6 @@ def is_duplicate_face(
 
             saved_encoding = np.array(face_info["encoding"])
             similarity = 1 - cosine(new_encoding, saved_encoding)
-
-            print("→ 비교 대상:", face_info.get("location"))
-            print("→ 현재 업로드:", location)
-            print("→ similarity:", similarity)
 
             # 위치가 동일하고, 유사도 기준 이상이면 중복 처리
             if face_info.get("location") == location and similarity > threshold:

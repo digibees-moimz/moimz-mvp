@@ -1,12 +1,14 @@
 import os
 import cv2
 import uuid
+import hashlib
 from datetime import datetime
 
 import numpy as np
 from fastapi import UploadFile
 
-from src.constants import ALBUM_DIR
+from src.constants import ALBUM_DIR, IMAGE_HASH_PATH
+from src.utils.file_io import load_json, save_json
 
 
 # 업로드 이미지 저장
@@ -31,3 +33,24 @@ def generate_unique_filename(original_filename: str) -> str:
     uid = uuid.uuid4().hex[:8]
     date = datetime.now().strftime("%Y%m%d")
     return f"{date}_{uid}{ext}"
+
+
+# 이미지 해시 구하기
+def get_image_hash(image_bytes: bytes) -> str:
+    return hashlib.md5(image_bytes).hexdigest()
+
+
+# 이미지 파일 중복 검사
+def is_duplicate_image(image_bytes: bytes) -> bool:
+    image_hash = get_image_hash(image_bytes)
+    hash_list = load_json(IMAGE_HASH_PATH, [])
+
+    if not isinstance(hash_list, list):
+        hash_list = []
+
+    if image_hash in hash_list:
+        return True  # 중복
+    else:
+        hash_list.append(image_hash)
+        save_json(IMAGE_HASH_PATH, hash_list)
+        return False
