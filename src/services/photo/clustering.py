@@ -11,7 +11,7 @@ from scipy.spatial.distance import cosine
 from sklearn.metrics.pairwise import pairwise_distances
 
 from src.utils.file_io import load_json, save_json
-from src.services.photo.storage import save_image_to_album
+from src.services.photo.storage import save_image_to_album, generate_unique_filename
 from src.constants import (
     METADATA_PATH,
     REPRESENTATIVES_PATH,
@@ -35,8 +35,8 @@ async def add_incremental_faces(files: List[UploadFile]) -> Dict:
 
         face_locations = face_recognition.face_locations(image)
         encodings = face_recognition.face_encodings(image, face_locations)
-        
-        saved_filename = save_image_to_album(file, image)
+
+        saved_filename = generate_unique_filename(file.filename)
 
         for encoding, loc in zip(encodings, face_locations):
             if is_duplicate_face(encoding, loc):
@@ -78,6 +78,7 @@ async def add_incremental_faces(files: List[UploadFile]) -> Dict:
                     "file_name": saved_filename,
                 }
             )
+        saved_filename = save_image_to_album(file, image, saved_filename)
 
     # 저장
     save_json(TEMP_ENCODING_PATH, face_image_map)
@@ -90,17 +91,20 @@ async def add_incremental_faces(files: List[UploadFile]) -> Dict:
 async def run_album_clustering(files: List[UploadFile]) -> Dict:
     all_face_encodings = []  # 전체 얼굴 벡터
     face_image_map = []  # 얼굴 벡터에 해당하는 이미지 정보 (파일명, 얼굴 좌표)
-    saved_files = {}
-    raw_images = {}
 
     for file in files:
         image_bytes = await file.read()
         image_np = np.frombuffer(image_bytes, np.uint8)
         image = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
-        raw_images[file.filename] = (file, image)
 
         face_locations = face_recognition.face_locations(image)
         encodings = face_recognition.face_encodings(image, face_locations)
+
+        if not encodings:
+            continue  # 얼굴이 없으면 패스
+
+        # 고유 파일명 먼저 생성
+        saved_filename = generate_unique_filename(file.filename)
 
         for loc, encoding in zip(face_locations, encodings):
             if is_duplicate_face(encoding, loc):
@@ -110,11 +114,13 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
             all_face_encodings.append(encoding)
             face_image_map.append(
                 {
-                    "file_name": file.filename,
+                    "file_name": saved_filename,
                     "location": loc,  # (top, right, bottom, left)
                     "encoding": encoding.tolist(),  # 다음 단계에 전달
                 }
             )
+        # 이미지 저장은 마지막에 한 번만
+        save_image_to_album(file, image, saved_filename)
 
     if not all_face_encodings:
         return {"message": "등록된 얼굴이 없습니다."}
@@ -149,15 +155,6 @@ async def run_album_clustering(files: List[UploadFile]) -> Dict:
 
         info["face_id"] = face_id
         info["predicted_person"] = cluster_key
-
-        # 파일 저장 (person_id 기준 이름으로)
-        original_filename = info["file_name"]
-
-        file, image = raw_images[original_filename]
-        saved_filename = save_image_to_album(file, image)
-        saved_files[original_filename] = saved_filename
-
-        info["file_name"] = saved_filename
 
         # 저장 대상 필드만 반환 (encoding 제외)
         clustered_result.setdefault(cluster_key, []).append(
@@ -372,20 +369,27 @@ def is_duplicate_face(
     new_encoding: np.ndarray, location, threshold: float = 0.95
 ) -> bool:
 
+    print("⚡️중복 검사 진입")
+    print("▶︎ new_encoding[:5]:", new_encoding[:5])
+    print("▶︎ location:", location)
+
     for source_path in [METADATA_PATH, TEMP_ENCODING_PATH]:
         face_data = load_json(source_path)
+        print(f"→ 검사 대상: {source_path}, 얼굴 수: {len(face_data)}")
 
         if not face_data:
-            return False
+            continue
 
         for face_info in (
             face_data.values() if isinstance(face_data, dict) else face_data
         ):
+            if "encoding" not in face_info:
+                continue
+
             saved_encoding = np.array(face_info["encoding"])
             similarity = 1 - cosine(new_encoding, saved_encoding)
 
-            # 디버깅 로그 추가 👇
-            print("→ 비교 대상:", face_info["location"])
+            print("→ 비교 대상:", face_info.get("location"))
             print("→ 현재 업로드:", location)
             print("→ similarity:", similarity)
 

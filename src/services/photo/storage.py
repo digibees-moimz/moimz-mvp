@@ -10,12 +10,10 @@ from src.constants import ALBUM_DIR
 
 
 # 업로드 이미지 저장
-def save_image_to_album(file: UploadFile, image_np: np.ndarray) -> str:
+def save_image_to_album(file: UploadFile, image_np: np.ndarray, unique_filename) -> str:
     save_dir = os.path.join(ALBUM_DIR, "uploaded")
     os.makedirs(save_dir, exist_ok=True)
 
-    # 고유 파일명 생성
-    unique_filename = generate_unique_filename(file.filename)
     save_path = os.path.join(save_dir, unique_filename)
 
     cv2.imwrite(save_path, image_np)
