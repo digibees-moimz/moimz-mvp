@@ -1,5 +1,9 @@
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+# .env 로드
+load_dotenv(dotenv_path=".env")
 
 # .env 로드
 load_dotenv(dotenv_path=".env")
@@ -15,6 +19,14 @@ from src.apis.sd_prompt_api import router as moim_router
 
 # lifespan 적용해서 FastAPI 앱 생성
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 개발 중엔 * 허용하고, 나중에 도메인 제한
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # API 라우터 등록
 app.include_router(
