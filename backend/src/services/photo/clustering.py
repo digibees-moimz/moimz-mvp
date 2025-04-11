@@ -11,11 +11,6 @@ from scipy.spatial.distance import cosine
 from sklearn.metrics.pairwise import pairwise_distances
 
 from src.utils.file_io import load_json, save_json
-from src.services.photo.storage import (
-    save_image_to_album,
-    generate_unique_filename,
-    is_duplicate_image,
-)
 from src.constants import (
     METADATA_PATH,
     REPRESENTATIVES_PATH,
