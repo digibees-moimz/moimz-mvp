@@ -1,31 +1,39 @@
+import Link from "next/link";
+
 interface AlbumCardProps {
+  album_id: string;
   title: string;
   count: number;
   thumbnailUrl: string;
 }
 
 export const AlbumCard: React.FC<AlbumCardProps> = ({
+  album_id,
   title,
   count,
   thumbnailUrl,
 }) => {
   return (
-    <div>
-      <div className="bg-white h-25 rounded-lg shadow-md overflow-hidden">
-        <div className="w-full h-40 relative">
-          {thumbnailUrl && (
+    <Link href={`/albums/${album_id}`}>
+      <div className="cursor-pointer">
+        <div className="bg-white h-25 rounded-lg shadow-md overflow-hidden">
+          <div className="w-full h-40 relative">
             <img
-              src={thumbnailUrl}
               alt={title}
               className="mb-2 w-full h-25 object-cover"
+              src={
+                thumbnailUrl
+                  ? `http://localhost:8000/album${thumbnailUrl}`
+                  : "/icons/icon-512x512.png"
+              }
             />
-          )}
+          </div>
+        </div>
+        <div className="p-1 leading-tight">
+          <h3 className="text-m font-medium text-gray-900">{title}</h3>
+          {count > 0 && <p className="text-xs text-gray-400">{count}</p>}
         </div>
       </div>
-      <div className="p-1 leading-tight">
-        <h3 className="text-m font-medium text-gray-900">{title}</h3>
-        {count > 0 && <p className="text-xs text-gray-400">{count}</p>}
-      </div>
-    </div>
+    </Link>
   );
 };

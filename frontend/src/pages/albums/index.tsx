@@ -33,6 +33,7 @@ export default function AlbumPage() {
             {albums.map((album) => (
               <AlbumCard
                 key={album.album_id}
+                album_id={album.album_id}
                 title={album.title}
                 count={album.count}
                 thumbnailUrl={`http://localhost:8000/album${album.thumbnail.url}`}
