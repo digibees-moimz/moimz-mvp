@@ -17,7 +17,9 @@ def get_moim_prompt(moim_id: int):
             "score": result["category_score"],
             "level": result["level"],
             "level_name": result["level_name"],
-            "prompt": result["prompt"]
+            "prompt": result["prompt"],
+            "negative_prompt": result["negative_prompt"]
+
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

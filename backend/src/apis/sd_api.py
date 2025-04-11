@@ -11,7 +11,7 @@ from src.services.sd.moim_service import generate_prompt_from_scores
 
 router = APIRouter()
 
-SD_API_URL="https://9js2jbl47724of-3000.proxy.runpod.net"
+SD_API_URL="https://c6t2b9gsry56tr-3000.proxy.runpod.net"
 
 
 # 프롬프트만 받는 요청 스키마
@@ -33,11 +33,14 @@ async def generate_image_from_moim(moim_id: int):
         # 1. 프롬프트 생성
         result = generate_prompt_from_scores(moim_id)
         prompt = result["prompt"]
+        negative_prompt = result["negative_prompt"]
         print(f"[DEBUG] 생성된 프롬프트: {prompt}")
+        print(f"[DEBUG] 생성된 네거티브 프롬프트: {negative_prompt}")
 
         # 2. Stable Diffusion 호출
         payload = {
             "prompt": prompt,
+            "negative_prompt": negative_prompt,
             "steps": 25,
             "sampler_index": "Euler a",
             "enable_hr": True,
@@ -45,7 +48,7 @@ async def generate_image_from_moim(moim_id: int):
             "denoising_strength": 0.7,
             "hr_upscaler": "Latent",
             "width": 512,
-            "height": 768,
+            "height": 512,
         }
 
         response = requests.post(f"{SD_API_URL}/sdapi/v1/txt2img", json=payload)

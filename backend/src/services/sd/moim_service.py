@@ -17,14 +17,14 @@ def get_scores_by_moim_id(moim_id: int) -> dict:
     # 예: 가상의 DB조회 결과
     fake_db_result = {
         "restaurant": 250,
-        "bar": 130,
+        "bar": 400,
         "travel": 50,
-        "cafe": 400,
+        "cafe": 200,
         "leisure": 300
     }
     return fake_db_result
 
-def generate_prompt_from_scores(moim_id: int, char_token: str = "a cutr blue bird character, <lora:dandi_style:1>") -> dict:
+def generate_prompt_from_scores(moim_id: int, char_token: str = "a cute blue bird character, <lora:dandi_style:1>") -> dict:
     """
     1) moim_id로 각 카테고리 점수 가져오기
     2) 가장 점수가 높은 카테고리 찾기
@@ -50,8 +50,18 @@ def generate_prompt_from_scores(moim_id: int, char_token: str = "a cutr blue bir
     final_prompt = (
         f"{char_token}, "
         f"{keywords}, "
-        "extremely detailed, cartoon style, 4k, trending on ArtStation, cinematic lighting, "
-        "masterpiece, best quality"
+        "centered composition, plain background, "
+        "chibi style, pastel color palette, smooth shading, adorable, "
+        "best quality, masterpiece, extremely detailed"
+    )
+
+    negative_prompt = (
+        "text, logo, title, watermark, signature, "
+        "human, person, man, woman, skin, flesh, "
+        "menu, extra objects, " 
+        "mutation, deformed, ugly, "
+        "realistic, photo, " 
+        "(lowres, bad anatomy, wrong anatomy, blurry) "
     )
 
     return {
@@ -59,5 +69,6 @@ def generate_prompt_from_scores(moim_id: int, char_token: str = "a cutr blue bir
         "category_score": top_score,
         "level": level,
         "level_name": level_name,
-        "prompt": final_prompt
+        "prompt": final_prompt,
+        "negative_prompt": negative_prompt
     }
