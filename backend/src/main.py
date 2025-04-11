@@ -10,6 +10,8 @@ from src.apis.face_register_api import router as face_router
 from src.apis.attendance_api import router as attendance_router
 from src.apis.album_api import router as album_router
 from src.apis.image_api import router as dalle_router
+from src.apis.sd_api import router as sd_router
+from src.apis.sd_prompt_api import router as moim_router
 
 # lifespan 적용해서 FastAPI 앱 생성
 app = FastAPI(lifespan=lifespan)
@@ -25,6 +27,9 @@ app.include_router(
 app.include_router(album_router, prefix="/album", tags=["Album"])  # 인물별 앨범 API
 app.include_router(dalle_router, prefix="/diary", tags=["Diary"])  # 그림 생성 API
 
+# SD그림생성성
+app.include_router(moim_router, prefix="/sd", tags=["StableDiffusion"]) # 그림 생성 프롬프트
+app.include_router(sd_router, prefix="/sd", tags=["StableDiffusion"])
 
 @app.get("/")
 def home():
