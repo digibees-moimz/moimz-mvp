@@ -13,11 +13,11 @@ export interface Album {
 
 // API base 설정
 const api = axios.create({
-  baseURL: "http://localhost:8000", // FastAPI 주소
+  baseURL: "http://localhost:8000/album", // FastAPI 주소
 });
 
 // 앨범 리스트 가져오기
 export const fetchAlbums = async (): Promise<Album[]> => {
-  const res = await api.get("/album/albums");
+  const res = await api.get("/albums");
   return res.data.albums;
 };
