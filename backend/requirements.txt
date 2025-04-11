@@ -15,3 +15,5 @@ webdriver-manager
 pyperclip
 undetected-chromedriver
 hdbscan
+anthropic
+openai

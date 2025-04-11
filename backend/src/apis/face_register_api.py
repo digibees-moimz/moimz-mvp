@@ -7,36 +7,14 @@ import face_recognition
 import numpy as np
 from fastapi import APIRouter, UploadFile, File
 
-from src.services.face_clustering import update_user_clusters, visualize_clusters
-
+from src.services.user.clustering import (
+    update_user_clusters,
+    visualize_clusters,
+)
+from src.services.user.storage import face_db
+from src.constants import FACE_DATA_DIR
 
 router = APIRouter()
-
-face_db = {}  # 얼굴 데이터 저장 - 임시
-FACE_DATA_DIR = os.path.join("src", "data", "users")  # 얼굴 데이터 저장 폴더 경로 설정
-os.makedirs(FACE_DATA_DIR, exist_ok=True)  # 얼굴 벡터 파일 저장 디렉토리 생성
-
-
-# 저장된 얼굴 벡터 파일들을 불러오는 로직
-def load_faces_from_files():
-    for file in os.listdir(FACE_DATA_DIR):
-        if file.startswith("face_") and file.endswith(".pkl"):
-            try:
-                user_id = int(file.split("_")[1].split(".")[0])
-                with open(os.path.join(FACE_DATA_DIR, file), "rb") as f:
-                    loaded_data = pickle.load(f)
-
-                    # 만약 loaded_data가 리스트이면, 새로운 구조로 변환
-                    if isinstance(loaded_data, list):
-                        loaded_data = {"raw": loaded_data}
-                    face_db[user_id] = loaded_data
-                print(f"✅ {user_id}번 사용자의 얼굴 데이터를 불러왔습니다.")
-            except Exception as e:
-                print(f"⚠️ {file} 로딩 실패: {e}")
-
-
-# 서버 시작 시, 저장된 벡터 파일들을 불러옴
-load_faces_from_files()
 
 
 # 얼굴 등록 API

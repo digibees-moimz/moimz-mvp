@@ -1,6 +1,13 @@
 import os
 
-ALBUM_DIR = os.path.join("src", "data", "album")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 얼굴 등록 + 출석체크
+FACE_DATA_DIR = os.path.join(BASE_DIR, "src", "data", "users")
+os.makedirs(FACE_DATA_DIR, exist_ok=True)
+
+# 인물별 앨범
+ALBUM_DIR = os.path.join(BASE_DIR, "src", "data", "album")
 os.makedirs(ALBUM_DIR, exist_ok=True)
 
 ENCODING_PATH = os.path.join(ALBUM_DIR, "face_encodings.npy")

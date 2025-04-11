@@ -6,11 +6,9 @@ import face_recognition
 import numpy as np
 from fastapi import APIRouter, UploadFile, File
 
-router = APIRouter()
+from src.services.user.storage import face_db
 
-face_db = {}  # 얼굴 데이터 저장 - 임시
-FACE_DATA_DIR = os.path.join("src", "data", "users")  # 얼굴 데이터 저장 폴더 경로 설정
-os.makedirs(FACE_DATA_DIR, exist_ok=True)  # 얼굴 벡터 파일 저장 디렉토리 생성
+router = APIRouter()
 
 
 # 출석체크 API
@@ -105,4 +103,3 @@ async def check_attendance(file: UploadFile = File(...)):
             "message": "출석한 사람 없음",
             "실행 시간 (초)": duration,
         }
-
