@@ -1,7 +1,10 @@
 import os
+import cv2
 from fastapi import APIRouter, UploadFile, File, Query
 from typing import List
 from pathlib import Path
+from fastapi.responses import FileResponse
+
 
 from src.utils.file_io import load_json, save_json
 from src.services.photo.clustering import process_and_classify_faces
@@ -10,7 +13,7 @@ from src.constants import METADATA_PATH, ALBUM_DIR
 router = APIRouter()
 
 
-@router.post("/faces/upload")
+@router.post("/upload")
 async def upload_faces(files: List[UploadFile] = File(...)):
     results = await process_and_classify_faces(files)
     return {"message": "얼굴 업로드 및 분류 완료", "results": results}
@@ -47,6 +50,8 @@ def list_albums():
     # 인물/미분류 앨범
     for person_id, faces in albums.items():
         album_type = "unknown" if person_id == "unknown" else "person"
+        thumbnail_face_id = find_face_id(metadata, faces[0])
+
         album_list.append(
             {
                 "album_id": person_id,
@@ -55,7 +60,7 @@ def list_albums():
                 "count": len(faces),
                 "thumbnail": {
                     "file_name": faces[0]["file_name"],
-                    "url": f"/images/{faces[0]['file_name']}",
+                    "url": f"/thumbnails/{thumbnail_face_id}",  # 크롭된 썸네일 사용
                 },
             }
         )
@@ -90,6 +95,39 @@ def get_album_faces(album_id: str):
             )
 
     return {"album_id": album_id, "count": len(result_faces), "faces": result_faces}
+
+
+def find_face_id(metadata, face_data):
+    for face_id, data in metadata.items():
+        if data == face_data:
+            return face_id
+
+
+# 얼굴 ID 기반 썸네일 이미지 반환 (crop 영역 반환)
+@router.get("/thumbnails/{face_id}")
+def get_face_thumbnail(face_id: str):
+    metadata = load_json(METADATA_PATH, {})
+    if face_id not in metadata:
+        return {"error": "해당 face_id가 존재하지 않습니다."}
+
+    face_info = metadata[face_id]
+    file_name = face_info["file_name"]
+    top, right, bottom, left = face_info["location"]
+    image_path = Path(ALBUM_DIR) / "uploaded" / file_name
+
+    if not image_path.exists():
+        return {"error": "원본 이미지가 존재하지 않습니다."}
+
+    # 이미지 열고 얼굴 영역 자르기
+    image = cv2.imread(str(image_path))
+    cropped = image[top:bottom, left:right]
+    thumb_path = Path(ALBUM_DIR) / "thumbnails"
+    os.makedirs(thumb_path, exist_ok=True)
+
+    thumb_file = thumb_path / f"{face_id}.jpg"
+    cv2.imwrite(str(thumb_file), cropped)
+
+    return FileResponse(thumb_file)
 
 
 # 사용자 수정
