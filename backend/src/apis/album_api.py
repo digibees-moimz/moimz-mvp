@@ -130,6 +130,17 @@ def get_face_thumbnail(face_id: str):
     return FileResponse(thumb_file)
 
 
+from fastapi.responses import FileResponse
+
+
+@router.get("/images/{file_name}")
+def get_image(file_name: str):
+    image_path = Path(ALBUM_DIR) / "uploaded" / file_name
+    if not image_path.exists():
+        return {"error": "이미지가 존재하지 않습니다."}
+    return FileResponse(image_path)
+
+
 # 사용자 수정
 @router.post("/faces/override")
 def override_face_label(face_id: str = Query(...), new_person_id: str = Query(...)):
