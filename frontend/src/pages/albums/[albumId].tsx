@@ -1,29 +1,22 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import axios from "axios";
-
-interface Face {
-  face_id: string;
-  file_name: string;
-  location: number[];
-  image_url: string;
-}
+import { fetchAlbumDetail, PhotoList } from "@/apis/album";
 
 export default function AlbumDetailPage() {
   const router = useRouter();
   const { albumId } = router.query;
 
-  const [faces, setFaces] = useState<Face[]>([]);
+  const [faces, setFaces] = useState<PhotoList[]>([]);
 
   useEffect(() => {
-    if (!albumId || albumId === "all_photos") return; // 전체 앨범은 제외
-    axios
-      .get(`http://localhost:8000/album/albums/${albumId}`)
-      .then((res) => {
-        setFaces(res.data.faces);
+    if (!albumId) return;
+
+    fetchAlbumDetail(albumId as string)
+      .then((data) => {
+        setFaces(data);
       })
       .catch((err) => {
-        console.error("❌ 앨범 상세 조회 실패:", err);
+        console.error(err);
       });
   }, [albumId]);
 
@@ -36,7 +29,7 @@ export default function AlbumDetailPage() {
             key={face.face_id}
             src={`http://localhost:8000/album${face.image_url}`}
             alt={face.face_id}
-            className="rounded-md h-32 w-32  object-cover"
+            className="rounded-md h-32 w-32 object-cover object-top"
           />
         ))}
       </div>
