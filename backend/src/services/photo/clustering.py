@@ -128,7 +128,25 @@ def update_representative(person_id: str, new_encoding: np.ndarray, reps: dict):
     dq.append(new_encoding.tolist())
 
     reps[history_key] = list(dq)
-    reps[person_id] = np.mean(np.array(dq), axis=0).tolist()
+
+    # medoid 방식으로 대표 벡터 지정
+    rep_vec = get_medoid_vector(dq)
+    reps[person_id] = rep_vec
+
+
+def get_medoid_vector(encoding_list: List[List[float]]) -> List[float]:
+    if not encoding_list:
+        print("⚠️ encoding_list 비어 있음. 빈 벡터 반환.")
+        return [0.0] * 128  # fallback
+
+    enc_np = np.array(encoding_list)
+
+    # 각 벡터 간 거리 행렬
+    dist_matrix = np.linalg.norm(enc_np[:, None] - enc_np, axis=2)
+    dist_sums = np.sum(dist_matrix, axis=1)
+
+    medoid_index = np.argmin(dist_sums)
+    return enc_np[medoid_index].tolist()
 
 
 # 새로운 사람 ID 생성
@@ -150,9 +168,9 @@ def get_next_face_id(data: dict) -> str:
 # 출석체크용 `.pkl` 얼굴 데이터 → 대표 벡터 로딩 함수
 def load_attendance_representatives() -> dict:
     """
-       출석 체크용 얼굴 데이터를 기반으로 대표 벡터를 계산하여 반환함
-       - person_id 기준으로 평균 벡터를 계산하여 대표 벡터로 사용
-       - 최근 N개의 벡터는 history로 함께 저장
+    출석 체크용 얼굴 데이터를 기반으로 대표 벡터를 계산하여 반환함
+    - person_id 기준으로 평균 벡터를 계산하여 대표 벡터로 사용
+    - 최근 N개의 벡터는 history로 함께 저장
     """
     reps = {}
 
