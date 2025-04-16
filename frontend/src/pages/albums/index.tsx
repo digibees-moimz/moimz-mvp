@@ -10,10 +10,10 @@ export default function AlbumPage() {
     fetchAlbums()
       .then((data) => {
         setAlbums(data);
-        console.log("🎯 앨범 리스트", data);
+        console.log(data);
       })
       .catch((err) => {
-        console.error("❌ API 호출 실패:", err);
+        console.error(err);
       });
   }, []);
 
@@ -33,9 +33,10 @@ export default function AlbumPage() {
             {albums.map((album) => (
               <AlbumCard
                 key={album.album_id}
+                album_id={album.album_id}
                 title={album.title}
                 count={album.count}
-                thumbnailUrl={`http://localhost:8000/album${album.thumbnail.url}`}
+                thumbnailUrl={album.thumbnail.url}
               />
             ))}
           </div>
