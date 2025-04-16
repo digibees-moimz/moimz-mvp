@@ -29,7 +29,7 @@ export default function AlbumDetailPage() {
             key={face.face_id}
             src={`http://localhost:8000/album${face.image_url}`}
             alt={face.face_id}
-            className="rounded-md h-32 w-32 object-cover object-top"
+            className="rounded-md h-25 w-25 object-cover object-top"
           />
         ))}
       </div>
