@@ -66,7 +66,13 @@ async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
             person_id = find_matching_person_id(encoding, representatives)
 
             if person_id in override_map:
+                original = person_id
                 person_id = override_map[person_id]
+
+                # 기존 대표 벡터 및 history 제거
+                print(f"override된 {original}의 대표 벡터 제거")
+                representatives.pop(original, None)
+                representatives.pop(f"{original}_history", None)
 
             face_id = get_next_face_id(metadata)
             metadata[face_id] = {
@@ -93,7 +99,7 @@ async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
 
 
 def find_matching_person_id(
-    new_encoding: np.ndarray, reps: dict, threshold: float = 0.07
+    new_encoding: np.ndarray, reps: dict, threshold: float = 0.12
 ) -> str:
     best_match = None
     best_dist = float("inf")
