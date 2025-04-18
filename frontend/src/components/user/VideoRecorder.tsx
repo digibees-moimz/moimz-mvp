@@ -109,8 +109,9 @@ export default function VideoRecorder({ userId }: Props) {
     <div className="w-screen h-screen flex flex-col items-center justify-center bg-black relative overflow-hidden">
       {isUploading && (
         <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-20">
-          <div className="text-white text-xl font-semibold animate-pulse">
-            ⏳ 업로드 중입니다...
+          <div className="flex flex-col items-center text-white animate-pulse">
+            <p className="text-xl font-semibold">⏳ 업로드 중입니다...</p>
+            <p className="text-sm pt-1">잠시만 기다려주세요</p>
           </div>
         </div>
       )}
@@ -122,15 +123,17 @@ export default function VideoRecorder({ userId }: Props) {
         className="aspect-12/16 top-0 left-0 w-full border shadow-lg object-cover bg-black transform scale-x-[-1]"
       />
 
-      <div className="absolute top-[220px] w-full left-1/2 -translate-x-1/2 text-xl font-bold z-20 text-center">
-        {step === "left" && (
-          <span className="animate-arrow-left text-3xl">⬅︎ </span>
-        )}
-        <span>{stepMessage}</span>
-        {step === "right" && (
-          <span className="animate-arrow-right text-3xl">➡︎ </span>
-        )}
-      </div>
+      {!isUploading && (
+        <div className="absolute top-[200px] w-[90vw] left-1/2 -translate-x-1/2 text-lg font-bold z-20 text-center text-white p-3 bg-black/50 rounded-lg">
+          {step === "left" && (
+            <span className="animate-arrow-left text-3xl">⬅︎ </span>
+          )}
+          <span>{stepMessage}</span>
+          {step === "right" && (
+            <span className="animate-arrow-right text-3xl"> ➡︎</span>
+          )}
+        </div>
+      )}
 
       <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-90">
         <div className="w-[65vw] max-w-[300px] aspect-square rounded-full border-2 border-dashed border-white flex justify-center items-center text-white font-bold text-xl text-center">
