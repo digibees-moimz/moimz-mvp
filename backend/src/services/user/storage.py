@@ -6,8 +6,7 @@ from src.constants import FACE_DATA_DIR
 # 얼굴 데이터 저장소
 face_db = {}
 
-
-# 장된 얼굴 벡터 파일 불러오기
+# 저장된 얼굴 벡터 파일 불러오기
 def load_faces_from_files():
     for file in os.listdir(FACE_DATA_DIR):
         if file.startswith("face_") and file.endswith(".pkl"):
