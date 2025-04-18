@@ -63,8 +63,6 @@ export default function VideoRecorder({ userId }: Props) {
 
   const startRecording = () => {
     if (!mediaRecorderRef.current) return;
-
-    console.log("🎬 녹화 시작");
     setRecording(true);
     mediaRecorderRef.current.start();
 
@@ -77,7 +75,6 @@ export default function VideoRecorder({ userId }: Props) {
 
     setTimeout(() => {
       mediaRecorderRef.current?.stop();
-      console.log("🛑 녹화 종료");
       setRecording(false);
     }, steps.length * 3000);
   };

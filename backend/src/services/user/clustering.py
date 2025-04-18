@@ -16,7 +16,7 @@ def update_user_clusters(
     face_db: Dict[int, Dict[str, Any]],
     user_id: int,
     threshold: int = 5,  # 클러스터링에 필요한 최소 데이터 수(임계치)
-    n_clusters: int = 3,  # 클러스터의 개수(k)
+    n_clusters: int = 4,  # 클러스터의 개수(k)
 ):
 
     # 사용자 원본 벡터 리스트(raw 데이터) 가져오기

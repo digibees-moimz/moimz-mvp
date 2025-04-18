@@ -6,7 +6,7 @@ import uuid
 
 
 # 업로드 영상에서 프레임 추출
-def extract_frames_from_video(video_bytes, interval=5):
+def extract_frames_from_video(video_bytes, interval=10):
     np_array = np.frombuffer(video_bytes, np.uint8)
     temp_video_path = f"temp_{uuid.uuid4().hex}.mp4"
     with open(temp_video_path, "wb") as f:
@@ -35,12 +35,18 @@ def augment_image(image: np.ndarray, use_flip=False) -> list:
 
     # 밝기 증가
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.2, 0, 255)
+    hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.3, 0, 255)
     bright = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
     aug_images.append(bright)
 
+    # 밝기 감소
+    hsv_dark = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    hsv_dark[:, :, 2] = np.clip(hsv_dark[:, :, 2] * 0.6, 0, 255)
+    darker = cv2.cvtColor(hsv_dark, cv2.COLOR_HSV2BGR)
+    aug_images.append(darker)
+
     # 약한 블러
-    blurred = cv2.GaussianBlur(image, (5, 5), 0)
+    blurred = cv2.GaussianBlur(image, (7, 7), 0)
     aug_images.append(blurred)
 
     # 회전 ±20도
@@ -51,7 +57,7 @@ def augment_image(image: np.ndarray, use_flip=False) -> list:
         aug_images.append(rotated)
 
     # 노이즈 추가
-    noise = np.random.normal(0, 10, image.shape).astype(np.uint8)
+    noise = np.random.normal(0, 1, image.shape).astype(np.uint8)
     noisy = cv2.add(image, noise)
     aug_images.append(noisy)
 
