@@ -11,13 +11,14 @@ from src.services.user.clustering import (
     update_user_clusters,
     visualize_clusters,
 )
+from src.services.user.register import extract_frames_from_video, augment_image
 from src.services.user.storage import face_db
 from src.constants import FACE_DATA_DIR
 
 router = APIRouter()
 
 
-# 얼굴 등록 API
+# 사진 기반 얼굴 등록 API
 @router.post("/register/{user_id}")
 async def register_faces(user_id: int, files: List[UploadFile] = File(...)):
 
@@ -104,3 +105,55 @@ async def register_faces(user_id: int, files: List[UploadFile] = File(...)):
 @router.get("/visualize_clusters/{user_id}")
 async def get_cluster_visualization(user_id: int):
     return visualize_clusters(face_db, user_id)
+
+
+# 영상 기반 얼굴 등록 API
+@router.post("/register_video/{user_id}")
+async def register_faces_from_video(user_id: int, file: UploadFile = File(...)):
+    video_bytes = await file.read()
+
+    # 프레임 추출
+    frames = extract_frames_from_video(video_bytes)
+
+    encodings_list = []
+    skipped = 0
+
+    # 데이터 증강
+    for frame in frames:
+        augmented_images = augment_image(frame)
+
+        for img in augmented_images:
+            locations = face_recognition.face_locations(img)
+            encodings = face_recognition.face_encodings(
+                img, known_face_locations=locations
+            )
+
+            if len(encodings) == 1:
+                encodings_list.append(encodings[0])
+            else:
+                skipped += 1
+
+    if not encodings_list:
+        return {"error": "등록 가능한 얼굴이 없습니다.", "skipped": skipped}
+
+    # 기존 사용자 얼굴 데이터와 병합
+    if user_id in face_db:
+        if isinstance(face_db[user_id], list):
+            face_db[user_id] = {"raw": face_db[user_id]}
+        face_db[user_id]["raw"].extend(encodings_list)
+    else:
+        face_db[user_id] = {"raw": encodings_list}
+
+    # KMeans 클러스터링 수행
+    cluster_msg = update_user_clusters(face_db, user_id)
+
+    # 저장
+    save_path = os.path.join(FACE_DATA_DIR, f"face_{user_id}.pkl")
+    with open(save_path, "wb") as f:
+        pickle.dump(face_db[user_id], f)
+
+    return {
+        "message": f"✅ 사용자 {user_id} 얼굴 {len(encodings_list)}개 등록 완료!",
+        "skipped": skipped,
+        "cluster_msg": cluster_msg,
+    }
