@@ -13,6 +13,20 @@ export default function VideoRecorder({ userId }: Props) {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
+  type StepType = "front" | "left" | "right" | "smile" | "";
+
+  const [step, setStep] = useState<StepType>("");
+  const [stepMessage, setStepMessage] =
+    useState("얼굴을 화면 중앙에 맞춰주세요");
+
+  const steps: { step: StepType; msg: string }[] = [
+    { step: "front", msg: "정면을 바라봐 주세요" },
+    { step: "left", msg: "천천히 왼쪽으로 얼굴을 돌려주세요" },
+    { step: "front", msg: "다시 정면을 바라봐 주세요" },
+    { step: "right", msg: "천천히 오른쪽으로 얼굴을 돌려주세요" },
+    { step: "smile", msg: "정면을 보며 환하게 웃어주세요!" },
+  ];
+
   const startCamera = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
 
@@ -48,20 +62,24 @@ export default function VideoRecorder({ userId }: Props) {
   };
 
   const startRecording = () => {
-    if (!mediaRecorderRef.current) {
-      alert("카메라를 먼저 시작해주세요!");
-      return;
-    }
+    if (!mediaRecorderRef.current) return;
 
     console.log("🎬 녹화 시작");
     setRecording(true);
     mediaRecorderRef.current.start();
 
+    steps.forEach((s, i) => {
+      setTimeout(() => {
+        setStep(s.step);
+        setStepMessage(s.msg);
+      }, i * 3000);
+    });
+
     setTimeout(() => {
       mediaRecorderRef.current?.stop();
       console.log("🛑 녹화 종료");
       setRecording(false);
-    }, 5000);
+    }, steps.length * 3000);
   };
 
   const uploadVideo = async (blob?: Blob) => {
@@ -107,8 +125,18 @@ export default function VideoRecorder({ userId }: Props) {
         className="aspect-12/16 top-0 left-0 w-full border shadow-lg object-cover bg-black transform scale-x-[-1]"
       />
 
+      <div className="absolute top-[220px] w-full left-1/2 -translate-x-1/2 text-xl font-bold z-20 text-center">
+        {step === "left" && (
+          <span className="animate-arrow-left text-3xl">⬅︎ </span>
+        )}
+        <span>{stepMessage}</span>
+        {step === "right" && (
+          <span className="animate-arrow-right text-3xl">➡︎ </span>
+        )}
+      </div>
+
       <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-90">
-        <div className="w-[60vw] max-w-[300px] aspect-square rounded-full border-2 border-dashed border-white flex justify-center items-center text-white font-bold text-xl text-center">
+        <div className="w-[65vw] max-w-[300px] aspect-square rounded-full border-2 border-dashed border-white flex justify-center items-center text-white font-bold text-xl text-center">
           {!recording && (
             <p>
               얼굴을 화면 중앙에 <br />
