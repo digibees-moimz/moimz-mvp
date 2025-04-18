@@ -35,6 +35,14 @@ def save_image(file: UploadFile, image_np: np.ndarray, filename: str):
 async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
     metadata = load_json(METADATA_PATH, {})
     representatives = load_json(REPRESENTATIVES_PATH, {})
+    override_map = {}
+
+    for face in metadata.values():
+        if "override" in face:
+            origin = face.get("person_id")
+            new = face.get("override")
+            if origin != new:  # 자가 참조 방지
+                override_map[origin] = new
 
     if not representatives:
         print("📥 대표 벡터가 없음 → 출석 체크용 얼굴 불러오기")
@@ -56,6 +64,15 @@ async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
 
         for loc, encoding in zip(face_locations, encodings):
             person_id = find_matching_person_id(encoding, representatives)
+
+            if person_id in override_map:
+                original = person_id
+                person_id = override_map[person_id]
+
+                # 기존 대표 벡터 및 history 제거
+                print(f"override된 {original}의 대표 벡터 제거")
+                representatives.pop(original, None)
+                representatives.pop(f"{original}_history", None)
 
             face_id = get_next_face_id(metadata)
             metadata[face_id] = {
@@ -82,7 +99,7 @@ async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
 
 
 def find_matching_person_id(
-    new_encoding: np.ndarray, reps: dict, threshold: float = 0.30
+    new_encoding: np.ndarray, reps: dict, threshold: float = 0.12
 ) -> str:
     best_match = None
     best_dist = float("inf")
@@ -111,6 +128,10 @@ def find_matching_person_id(
             best_dist = dist
             best_match = person_id
 
+    print(
+        f"📏 최종 거리: {best_dist:.4f}, 매칭 대상: {best_match} → {'✅ 기존 인물' if best_dist < threshold else '🆕 새 인물'}"
+    )
+
     if best_dist < threshold:
         return best_match
     else:
@@ -128,12 +149,34 @@ def update_representative(person_id: str, new_encoding: np.ndarray, reps: dict):
     dq.append(new_encoding.tolist())
 
     reps[history_key] = list(dq)
-    reps[person_id] = np.mean(np.array(dq), axis=0).tolist()
+
+    # medoid 방식으로 대표 벡터 지정
+    rep_vec = get_medoid_vector(dq)
+    reps[person_id] = rep_vec
+
+
+def get_medoid_vector(encoding_list: List[List[float]]) -> List[float]:
+    if not encoding_list:
+        print("⚠️ encoding_list 비어 있음. 빈 벡터 반환.")
+        return [0.0] * 128  # fallback
+
+    enc_np = np.array(encoding_list)
+
+    # 각 벡터 간 거리 행렬
+    dist_matrix = np.linalg.norm(enc_np[:, None] - enc_np, axis=2)
+    dist_sums = np.sum(dist_matrix, axis=1)
+
+    medoid_index = np.argmin(dist_sums)
+    return enc_np[medoid_index].tolist()
 
 
 # 새로운 사람 ID 생성
 def get_new_person_id(reps: dict) -> str:
-    existing = [int(k.replace("person_", "")) for k in reps if k.startswith("person_")]
+    existing = [
+        int(k.replace("person_", ""))
+        for k in reps
+        if k.startswith("person_") and not k.endswith("_history")
+    ]
     next_id = max(existing + [-1]) + 1
     return f"person_{next_id}"
 
@@ -150,9 +193,9 @@ def get_next_face_id(data: dict) -> str:
 # 출석체크용 `.pkl` 얼굴 데이터 → 대표 벡터 로딩 함수
 def load_attendance_representatives() -> dict:
     """
-       출석 체크용 얼굴 데이터를 기반으로 대표 벡터를 계산하여 반환함
-       - person_id 기준으로 평균 벡터를 계산하여 대표 벡터로 사용
-       - 최근 N개의 벡터는 history로 함께 저장
+    출석 체크용 얼굴 데이터를 기반으로 대표 벡터를 계산하여 반환함
+    - person_id 기준으로 평균 벡터를 계산하여 대표 벡터로 사용
+    - 최근 N개의 벡터는 history로 함께 저장
     """
     reps = {}
 
