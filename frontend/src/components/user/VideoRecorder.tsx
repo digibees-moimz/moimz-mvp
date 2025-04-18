@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 
 interface Props {
   userId: string;
@@ -84,6 +84,10 @@ export default function VideoRecorder({ userId }: Props) {
     alert("서버 응답: " + JSON.stringify(result));
   };
 
+  useEffect(() => {
+    startCamera();
+  }, []);
+
   return (
     <div className="w-screen h-screen flex flex-col items-center justify-center bg-black relative overflow-hidden">
       <video
@@ -96,12 +100,6 @@ export default function VideoRecorder({ userId }: Props) {
 
       {/* 버튼 영역 */}
       <div className="absolute bottom-6 flex gap-4 z-10">
-        <button
-          onClick={startCamera}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          📷 카메라 시작
-        </button>
         <button
           onClick={startRecording}
           disabled={!isCameraReady || recording}
