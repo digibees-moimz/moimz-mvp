@@ -107,6 +107,17 @@ export default function VideoRecorder({ userId }: Props) {
         className="aspect-12/16 top-0 left-0 w-full border shadow-lg object-cover bg-black transform scale-x-[-1]"
       />
 
+      <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-90">
+        <div className="w-[60vw] max-w-[300px] aspect-square rounded-full border-2 border-dashed border-white flex justify-center items-center text-white font-bold text-xl text-center">
+          {!recording && (
+            <p>
+              얼굴을 화면 중앙에 <br />
+              맞춰주세요
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* 버튼 영역 */}
       <div className="absolute flex items-center justify-center bottom-12 left-1/2 transform -translate-x-1/2 w-18 h-18 rounded-full bg-white z-10">
         <button
