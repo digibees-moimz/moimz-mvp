@@ -5,7 +5,7 @@ from typing import List
 import cv2
 import face_recognition
 import numpy as np
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException, status
 
 from src.services.user.clustering import (
     update_user_clusters,
@@ -110,6 +110,21 @@ async def get_cluster_visualization(user_id: int):
 # 영상 기반 얼굴 등록 API
 @router.post("/register_video/{user_id}")
 async def register_faces_from_video(user_id: int, file: UploadFile = File(...)):
+    # 파일 확장자 확인
+    allowed_exts = (".mp4", ".webm", ".mov", ".avi", ".mkv")
+    if not file.filename.lower().endswith(allowed_exts):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="지원되지 않는 파일 형식입니다. 영상(mp4, webm 등)만 업로드 가능합니다.",
+        )
+
+    # MIME 타입 확인
+    if not file.content_type.startswith("video/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="지원되지 않는 파일 형식입니다. video 타입만 업로드 가능합니다.",
+        )
+
     video_bytes = await file.read()
 
     # 프레임 추출
