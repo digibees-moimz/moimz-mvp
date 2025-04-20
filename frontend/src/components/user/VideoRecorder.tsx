@@ -7,6 +7,7 @@ interface Props {
 }
 
 export default function VideoRecorder({ userId }: Props) {
+  const chunksRef = useRef<Blob[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [recording, setRecording] = useState(false);
@@ -42,19 +43,24 @@ export default function VideoRecorder({ userId }: Props) {
       : "";
 
     const recorder = new MediaRecorder(stream);
-    const chunks: Blob[] = [];
 
     // 녹화 중 생성된 데이터 수신
     recorder.ondataavailable = (e) => {
-      chunks.push(e.data);
+      if (e.data.size > 0) {
+        chunksRef.current.push(e.data);
+      }
     };
 
     // 녹화 종료 시 최종 blob 저장
     recorder.onstop = () => {
-      const fullBlob = new Blob(chunks, { type: mimeType || "video/webm" });
+      const fullBlob = new Blob(chunksRef.current, {
+        type: mimeType || "video/webm",
+      });
 
       // 녹화 종료 시 자동 업로드
       uploadVideo(fullBlob);
+
+      chunksRef.current = []; // 초기화
     };
 
     mediaRecorderRef.current = recorder;
