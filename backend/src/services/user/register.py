@@ -75,52 +75,41 @@ def apply_occlusion(image: np.ndarray, landmarks: dict, region: str) -> np.ndarr
     masked = image.copy()
 
     if region == "mask" and all(
-        k in landmarks for k in ["top_lip", "bottom_lip", "chin", "nose_tip"]
+        k in landmarks for k in ["top_lip", "chin", "nose_tip"]
     ):
-        # 콧망울 위쪽 점 (nose_tip에서 가장 위쪽 점)
-        nose_top = min(landmarks["nose_tip"], key=lambda p: p[1])
-        y1 = nose_top[1] - 10
+        # 윗선 y 기준 (콧망울 위)
+        nose_top_y = min(landmarks["nose_tip"], key=lambda p: p[1])[1]
+        y1 = nose_top_y - 10
 
-        # x 중앙 기준으로 마스크 좌우폭 설정
-        top_lip_points = landmarks["top_lip"]
-        mouth_center_x = int(np.mean([pt[0] for pt in top_lip_points]))
+        # 마스크 중앙 x 기준
+        top_lip = landmarks["top_lip"]
+        mouth_center_x = int(np.mean([pt[0] for pt in top_lip]))
         x1 = mouth_center_x - 70
         x2 = mouth_center_x + 70
 
-        # 윗변: 고정된 직선
+        # 윗 라인
         upper_line = [(x1, y1), (x2, y1)]
 
-        # 아래쪽: 턱선 곡선
+        # 턱 곡선 (반대방향으로 안전하게)
         chin = landmarks["chin"]
-        center_idx = len(chin) // 2
-        curved_bottom = chin[center_idx + 2 : center_idx - 3 : -1]  # 오른쪽 → 왼쪽으로
+        chin_curve = chin[::-1]  # 왼쪽 → 오른쪽
 
-        # 양 옆 끝점 보정
-        curved_bottom.insert(0, (x2, y1 + 10))  # 오른쪽 위
-        curved_bottom.append((x1, y1 + 10))  # 왼쪽 위
-
-        # 전체 path 구성 (윗변 + 아래 곡선)
-        path = upper_line + curved_bottom
+        # 마스크 경로 구성
+        path = upper_line + chin_curve
         mask_poly = np.array([path], dtype=np.int32)
 
-        # 랜덤 효과 적용
-        effect = random.choice(["fill", "blur", "noise"])
+        # 마스크 생성
+        h, w = masked.shape[:2]
+        mask = np.zeros((h, w), dtype=np.uint8)
+        cv2.fillPoly(mask, [mask_poly], 255)
+        mask = cv2.GaussianBlur(mask, (5, 5), 0)
 
-        if effect == "fill":
-            cv2.fillPoly(masked, mask_poly, (10, 10, 10))
-
-        elif effect == "blur":
-            mask = np.zeros_like(masked)
-            cv2.fillPoly(mask, mask_poly, (255, 255, 255))
-            blurred = cv2.GaussianBlur(masked, (31, 31), 0)
-            masked = np.where(mask == 255, blurred, masked)
-
-        elif effect == "noise":
-            mask = np.zeros_like(masked)
-            cv2.fillPoly(mask, mask_poly, (255, 255, 255))
-            noise = np.random.normal(0, 25, masked.shape).astype(np.uint8)
-            noised = cv2.add(masked, noise)
-            masked = np.where(mask == 255, noised, masked)
+        # 컬러 fill + blend
+        fill_color = np.zeros_like(masked)
+        fill_color[:] = (255, 255, 255)
+        mask_3ch = cv2.merge([mask] * 3)
+        alpha = mask_3ch.astype(np.float32) / 255.0
+        masked = (masked * (1 - alpha) + fill_color * alpha).astype(np.uint8)
 
         return masked
 
