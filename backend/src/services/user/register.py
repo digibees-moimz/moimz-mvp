@@ -113,16 +113,52 @@ def apply_occlusion(image: np.ndarray, landmarks: dict, region: str) -> np.ndarr
 
         return masked
 
-    elif (
-        region == "sunglasses" and "left_eye" in landmarks and "right_eye" in landmarks
+    elif region == "sunglasses" and all(
+        k in landmarks for k in ["left_eye", "right_eye"]
     ):
-        # 눈 부위 가리기
-        eyes = landmarks["left_eye"] + landmarks["right_eye"]
-        x_coords, y_coords = zip(*eyes)
-        x1, y1 = min(x_coords) - 10, min(y_coords) - 15
-        x2, y2 = max(x_coords) + 10, max(y_coords) + 15
+        overlay = masked.copy()
+        effect = random.choice(["clear", "tinted", "dark"])
 
-        return apply_random_effect(masked, x1, y1, x2, y2, color=(30, 30, 30))
+        # 렌즈 설정
+        lens_color = {
+            "clear": (0, 0, 0),
+            "tinted": (60, 60, 60),
+            "dark": (30, 30, 30),
+        }
+        frame_color = (30, 30, 30)
+        alpha = 0.5 if effect == "tinted" else 1.0
+
+        eye_centers = []
+
+        for eye in ["left_eye", "right_eye"]:
+            eye_pts = landmarks[eye]
+            x_coords, y_coords = zip(*eye_pts)
+            cx = int(np.mean(x_coords))
+            cy = int(np.mean(y_coords)) + 4
+            axes = (25, 23)
+
+            # 렌즈 그리기
+            if effect == "clear":
+                cv2.ellipse(masked, (cx, cy), axes, 0, 0, 360, frame_color, 2)
+            elif effect == "tinted":
+                cv2.ellipse(overlay, (cx, cy), axes, 0, 0, 360, lens_color[effect], -1)
+                cv2.ellipse(overlay, (cx, cy), axes, 0, 0, 360, frame_color, 2)
+            elif effect == "dark":
+                cv2.ellipse(masked, (cx, cy), axes, 0, 0, 360, lens_color[effect], -1)
+                cv2.ellipse(masked, (cx, cy), axes, 0, 0, 360, frame_color, 2)
+
+            # 중심 저장 (렌즈 외곽을 기준으로 선 연결)
+            eye_centers.append((cx - axes[0], cy))  # 왼쪽 끝
+            eye_centers.append((cx + axes[0], cy))  # 오른쪽 끝
+
+        # 프레임 브릿지 연결 (렌즈 외곽 기준)
+        cv2.line(masked, eye_centers[1], eye_centers[2], frame_color, 3)
+
+        # 블렌딩 (tinted 렌즈에만 적용)
+        if effect == "tinted":
+            masked = cv2.addWeighted(overlay, alpha, masked, 1 - alpha, 0)
+
+        return masked
 
     elif (
         region == "hat" and "left_eyebrow" in landmarks and "right_eyebrow" in landmarks
