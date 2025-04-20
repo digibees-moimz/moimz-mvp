@@ -74,24 +74,55 @@ def augment_image(image: np.ndarray, use_flip=False) -> list:
 def apply_occlusion(image: np.ndarray, landmarks: dict, region: str) -> np.ndarray:
     masked = image.copy()
 
-    if (
-        region == "mask"
-        and "top_lip" in landmarks
-        and "bottom_lip" in landmarks
-        and "chin" in landmarks
-        and "nose_tip" in landmarks
+    if region == "mask" and all(
+        k in landmarks for k in ["top_lip", "bottom_lip", "chin", "nose_tip"]
     ):
         # 콧망울 위쪽 점 (nose_tip에서 가장 위쪽 점)
         nose_top = min(landmarks["nose_tip"], key=lambda p: p[1])
+        y1 = nose_top[1] - 10
 
+        # x 중앙 기준으로 마스크 좌우폭 설정
         top_lip_points = landmarks["top_lip"]
         mouth_center_x = int(np.mean([pt[0] for pt in top_lip_points]))
         x1 = mouth_center_x - 70
         x2 = mouth_center_x + 70
-        y1 = nose_top[1] - 10  # 콧망울 윗점 기준
-        y2 = max(p[1] for p in landmarks["chin"]) + 10
 
-        return apply_random_effect(masked, x1, y1, x2, y2, color=(10, 10, 10))
+        # 윗변: 고정된 직선
+        upper_line = [(x1, y1), (x2, y1)]
+
+        # 아래쪽: 턱선 곡선
+        chin = landmarks["chin"]
+        center_idx = len(chin) // 2
+        curved_bottom = chin[center_idx + 2 : center_idx - 3 : -1]  # 오른쪽 → 왼쪽으로
+
+        # 양 옆 끝점 보정
+        curved_bottom.insert(0, (x2, y1 + 10))  # 오른쪽 위
+        curved_bottom.append((x1, y1 + 10))  # 왼쪽 위
+
+        # 전체 path 구성 (윗변 + 아래 곡선)
+        path = upper_line + curved_bottom
+        mask_poly = np.array([path], dtype=np.int32)
+
+        # 랜덤 효과 적용
+        effect = random.choice(["fill", "blur", "noise"])
+
+        if effect == "fill":
+            cv2.fillPoly(masked, mask_poly, (10, 10, 10))
+
+        elif effect == "blur":
+            mask = np.zeros_like(masked)
+            cv2.fillPoly(mask, mask_poly, (255, 255, 255))
+            blurred = cv2.GaussianBlur(masked, (31, 31), 0)
+            masked = np.where(mask == 255, blurred, masked)
+
+        elif effect == "noise":
+            mask = np.zeros_like(masked)
+            cv2.fillPoly(mask, mask_poly, (255, 255, 255))
+            noise = np.random.normal(0, 25, masked.shape).astype(np.uint8)
+            noised = cv2.add(masked, noise)
+            masked = np.where(mask == 255, noised, masked)
+
+        return masked
 
     elif (
         region == "sunglasses" and "left_eye" in landmarks and "right_eye" in landmarks
