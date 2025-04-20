@@ -35,33 +35,33 @@ def extract_frames_from_video(video_bytes, interval=10):
 def augment_image(image: np.ndarray, use_flip=False) -> list:
     aug_images = [image]
 
-    # 밝기 증가
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.3, 0, 255)
-    bright = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
-    aug_images.append(bright)
+    # # 밝기 증가
+    # hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    # hsv[:, :, 2] = np.clip(hsv[:, :, 2] * 1.3, 0, 255)
+    # bright = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    # aug_images.append(bright)
 
-    # 밝기 감소
-    hsv_dark = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    hsv_dark[:, :, 2] = np.clip(hsv_dark[:, :, 2] * 0.6, 0, 255)
-    darker = cv2.cvtColor(hsv_dark, cv2.COLOR_HSV2BGR)
-    aug_images.append(darker)
+    # # 밝기 감소
+    # hsv_dark = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    # hsv_dark[:, :, 2] = np.clip(hsv_dark[:, :, 2] * 0.6, 0, 255)
+    # darker = cv2.cvtColor(hsv_dark, cv2.COLOR_HSV2BGR)
+    # aug_images.append(darker)
 
-    # 약한 블러
-    blurred = cv2.GaussianBlur(image, (7, 7), 0)
-    aug_images.append(blurred)
+    # # 약한 블러
+    # blurred = cv2.GaussianBlur(image, (7, 7), 0)
+    # aug_images.append(blurred)
 
-    # 회전 ±20도
-    h, w = image.shape[:2]
-    for angle in [-20, 20]:
-        M = cv2.getRotationMatrix2D((w // 2, h // 2), angle, 1.0)
-        rotated = cv2.warpAffine(image, M, (w, h))
-        aug_images.append(rotated)
+    # # 회전 ±20도
+    # h, w = image.shape[:2]
+    # for angle in [-20, 20]:
+    #     M = cv2.getRotationMatrix2D((w // 2, h // 2), angle, 1.0)
+    #     rotated = cv2.warpAffine(image, M, (w, h))
+    #     aug_images.append(rotated)
 
-    # 노이즈 추가
-    noise = np.random.normal(0, 1, image.shape).astype(np.uint8)
-    noisy = cv2.add(image, noise)
-    aug_images.append(noisy)
+    # # 노이즈 추가
+    # noise = np.random.normal(0, 1, image.shape).astype(np.uint8)
+    # noisy = cv2.add(image, noise)
+    # aug_images.append(noisy)
 
     # 얼굴 랜드마크 기반 가리기
     res = occlusion_augment(image)
@@ -165,17 +165,6 @@ def apply_occlusion(image: np.ndarray, landmarks: dict, region: str) -> np.ndarr
             masked = cv2.addWeighted(overlay, alpha, masked, 1 - alpha, 0)
 
         return masked
-
-    elif (
-        region == "hat" and "left_eyebrow" in landmarks and "right_eyebrow" in landmarks
-    ):
-        # 이마 위쪽 영역 가리기
-        brows = landmarks["left_eyebrow"] + landmarks["right_eyebrow"]
-        x_coords, y_coords = zip(*brows)
-        x1, y1 = min(x_coords) - 10, min(y_coords) - 60
-        x2, y2 = max(x_coords) + 10, min(y_coords) - 10
-        y1 = max(0, y1)
-        cv2.rectangle(masked, (x1, y1), (x2, y2), (40, 40, 40), -1)
 
     elif region == "hand" and "chin" in landmarks:
         # 턱/입 부분 가리기 (손 또는 핸드폰 가정)
