@@ -129,13 +129,14 @@ def apply_occlusion(image: np.ndarray, landmarks: dict, region: str) -> np.ndarr
         alpha = 0.5 if effect == "tinted" else 1.0
 
         eye_centers = []
+        lens_radius = 26  # 렌즈 반지름 (axes[0] 기준)
 
         for eye in ["left_eye", "right_eye"]:
             eye_pts = landmarks[eye]
             x_coords, y_coords = zip(*eye_pts)
             cx = int(np.mean(x_coords))
             cy = int(np.mean(y_coords)) + 4
-            axes = (25, 23)
+            axes = (lens_radius, 24)
 
             # 렌즈 그리기
             if effect == "clear":
@@ -147,14 +148,19 @@ def apply_occlusion(image: np.ndarray, landmarks: dict, region: str) -> np.ndarr
                 cv2.ellipse(masked, (cx, cy), axes, 0, 0, 360, lens_color[effect], -1)
                 cv2.ellipse(masked, (cx, cy), axes, 0, 0, 360, frame_color, 2)
 
-            # 중심 저장 (렌즈 외곽을 기준으로 선 연결)
+            # 중심 저장 (렌즈 외곽 기준)
             eye_centers.append((cx - axes[0], cy))  # 왼쪽 끝
             eye_centers.append((cx + axes[0], cy))  # 오른쪽 끝
 
-        # 프레임 브릿지 연결 (렌즈 외곽 기준)
-        cv2.line(masked, eye_centers[1], eye_centers[2], frame_color, 3)
+        # 렌즈 간 충분히 떨어져 있을 때만 브릿지 연결
+        cx_left = int(np.mean([pt[0] for pt in landmarks["left_eye"]]))
+        cx_right = int(np.mean([pt[0] for pt in landmarks["right_eye"]]))
+        center_dist = abs(cx_left - cx_right)
 
-        # 블렌딩 (tinted 렌즈에만 적용)
+        if center_dist > 2 * lens_radius:
+            cv2.line(masked, eye_centers[1], eye_centers[2], frame_color, 3)
+
+        # 블렌딩 (tinted 렌즈일 경우)
         if effect == "tinted":
             masked = cv2.addWeighted(overlay, alpha, masked, 1 - alpha, 0)
 
