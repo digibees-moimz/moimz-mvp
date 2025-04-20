@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import uuid
 import face_recognition
+import random
 
 
 # 업로드 영상에서 프레임 추출
@@ -90,8 +91,7 @@ def apply_occlusion(image: np.ndarray, landmarks: dict, region: str) -> np.ndarr
         y1 = nose_top[1] - 10  # 콧망울 윗점 기준
         y2 = max(p[1] for p in landmarks["chin"]) + 10
 
-        # 네모 마스크
-        cv2.rectangle(masked, (x1, y1), (x2, y2), (10, 10, 10), -1)
+        return apply_random_effect(masked, x1, y1, x2, y2, color=(10, 10, 10))
 
     elif (
         region == "sunglasses" and "left_eye" in landmarks and "right_eye" in landmarks
@@ -101,7 +101,8 @@ def apply_occlusion(image: np.ndarray, landmarks: dict, region: str) -> np.ndarr
         x_coords, y_coords = zip(*eyes)
         x1, y1 = min(x_coords) - 10, min(y_coords) - 15
         x2, y2 = max(x_coords) + 10, max(y_coords) + 15
-        cv2.rectangle(masked, (x1, y1), (x2, y2), (30, 30, 30), -1)
+
+        return apply_random_effect(masked, x1, y1, x2, y2, color=(30, 30, 30))
 
     elif (
         region == "hat" and "left_eyebrow" in landmarks and "right_eyebrow" in landmarks
@@ -118,9 +119,16 @@ def apply_occlusion(image: np.ndarray, landmarks: dict, region: str) -> np.ndarr
         # 턱/입 부분 가리기 (손 또는 핸드폰 가정)
         chin = landmarks["chin"]
         x_coords, y_coords = zip(*chin)
-        x1, y1 = min(x_coords), int(np.mean(y_coords)) - 10
-        x2, y2 = max(x_coords), max(y_coords) + 10
-        cv2.rectangle(masked, (x1, y1), (x2, y2), (60, 60, 60), -1)
+        x1 = min(x_coords)
+        x2 = max(x_coords)
+
+        # 아래쪽 1/3만 가리기
+        y_mid = int(np.mean(y_coords))
+        y2 = max(y_coords)
+        y1 = y_mid + (y2 - y_mid) // 2  # 아래쪽 일부
+
+        # 랜덤 효과 선택
+        return apply_random_effect(masked, x1, y1, x2, y2, color=(60, 60, 60))
 
     return masked
 
@@ -141,3 +149,24 @@ def occlusion_augment(
         augmented.append(masked)
 
     return augmented
+
+
+# 랜덤 효과 선택
+def apply_random_effect(
+    image: np.ndarray, x1: int, y1: int, x2: int, y2: int, color=(50, 50, 50)
+) -> np.ndarray:
+    effect = random.choice(["rectangle", "blur", "noise"])
+
+    if effect == "rectangle":
+        cv2.rectangle(image, (x1, y1), (x2, y2), color, -1)
+    elif effect == "blur":
+        roi = image[y1:y2, x1:x2]
+        blurred = cv2.GaussianBlur(roi, (31, 31), 0)
+        image[y1:y2, x1:x2] = blurred
+    elif effect == "noise":
+        roi = image[y1:y2, x1:x2]
+        noise = np.random.normal(0, 30, roi.shape).astype(np.uint8)
+        noised = cv2.add(roi, noise)
+        image[y1:y2, x1:x2] = noised
+
+    return image
