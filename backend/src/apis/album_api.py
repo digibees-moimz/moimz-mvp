@@ -9,7 +9,13 @@ from fastapi.responses import FileResponse
 
 from src.utils.file_io import load_json, save_json
 from src.services.photo.clustering import process_and_classify_faces
-from src.constants import METADATA_PATH, ALBUM_DIR, MIN_FACE_COUNT, REPRESENTATIVES_PATH
+from src.constants import (
+    METADATA_PATH,
+    ALBUM_DIR,
+    MIN_FACE_COUNT,
+    REPRESENTATIVES_PATH,
+    USER_INFO_PATH,
+)
 
 router = APIRouter()
 
@@ -24,6 +30,7 @@ async def upload_faces(files: List[UploadFile] = File(...)):
 @router.get("/albums")
 def list_albums():
     metadata = load_json(METADATA_PATH, {})
+    user_info = load_json(USER_INFO_PATH, {})
     albums = {}
 
     # too_small 제외하고 count
@@ -58,12 +65,21 @@ def list_albums():
             continue
 
         album_type = "unknown" if person_id == "unknown" else "person"
+
+        # person_id에서 user_id 추출하고 이름 조회
+        user_id = person_id.replace("person_", "")
+        name = (
+            user_info.get(user_id, {}).get("name", "")
+            if person_id.startswith("person_")
+            else ""
+        )
+
         thumbnail_face_id = find_face_id(metadata, faces[0])
 
         album_list.append(
             {
                 "album_id": person_id,
-                "title": person_id,
+                "title": name or "",
                 "type": album_type,
                 "count": len(faces),
                 "thumbnail": {

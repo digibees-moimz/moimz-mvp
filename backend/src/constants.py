@@ -6,6 +6,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FACE_DATA_DIR = os.path.join(BASE_DIR, "src", "data", "users")
 os.makedirs(FACE_DATA_DIR, exist_ok=True)
 
+# 사용자 정보
+USER_INFO_PATH = os.path.join(FACE_DATA_DIR, "users.json")
+
 FRAME_IMAGE_DIR = os.path.join("src", "data", "frames")
 AUG_IMAGE_DIR = os.path.join("src", "data", "augmented")
 
