@@ -1,5 +1,7 @@
 import os
 import cv2
+
+import numpy as np
 from fastapi import APIRouter, UploadFile, File, Query
 from typing import List
 from pathlib import Path
@@ -7,7 +9,7 @@ from fastapi.responses import FileResponse
 
 from src.utils.file_io import load_json, save_json
 from src.services.photo.clustering import process_and_classify_faces
-from src.constants import METADATA_PATH, ALBUM_DIR, MIN_FACE_COUNT
+from src.constants import METADATA_PATH, ALBUM_DIR, MIN_FACE_COUNT, REPRESENTATIVES_PATH
 
 router = APIRouter()
 
@@ -154,3 +156,41 @@ def override_face_label(face_id: str = Query(...), new_person_id: str = Query(..
     metadata[face_id]["override"] = new_person_id
     save_json(METADATA_PATH, metadata)
     return {"message": f"{face_id} → {new_person_id} 재지정 완료"}
+
+
+# 인물 병합 API
+@router.post("/faces/merge")
+def merge_person(
+    source_person_id: str = Query(...), target_person_id: str = Query(...)
+):
+    metadata = load_json(METADATA_PATH)
+    representatives = load_json(REPRESENTATIVES_PATH)
+
+    if source_person_id == target_person_id:
+        return {"error": "같은 person_id는 병합할 수 없습니다."}
+
+    # 병합 대상 face 업데이트
+    for face in metadata.values():
+        if face.get("person_id") == source_person_id:
+            face["person_id"] = target_person_id
+
+    # 대표 벡터 처리
+    if source_person_id in representatives:
+        source_vec = np.array(representatives[source_person_id], dtype=np.float32)
+        target_vecs = (
+            [np.array(representatives[target_person_id], dtype=np.float32)]
+            if target_person_id in representatives
+            else []
+        )
+        all_vecs = target_vecs + [source_vec]
+        new_rep = np.mean(all_vecs, axis=0)
+        representatives[target_person_id] = new_rep.tolist()
+
+    # source person 제거
+    representatives.pop(source_person_id, None)
+    representatives.pop(f"{source_person_id}_history", None)
+
+    save_json(METADATA_PATH, metadata)
+    save_json(REPRESENTATIVES_PATH, representatives)
+
+    return {"message": f"{source_person_id} → {target_person_id} 병합 완료"}

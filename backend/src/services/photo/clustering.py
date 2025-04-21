@@ -6,7 +6,6 @@ from typing import List
 
 import cv2
 import numpy as np
-import face_recognition
 from fastapi import UploadFile
 from scipy.spatial.distance import cosine
 
