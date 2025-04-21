@@ -11,7 +11,14 @@ from fastapi import UploadFile
 from scipy.spatial.distance import cosine
 
 from src.utils.file_io import load_json, save_json
-from src.constants import METADATA_PATH, REPRESENTATIVES_PATH, ALBUM_DIR, FACE_DATA_DIR
+from src.constants import (
+    METADATA_PATH,
+    REPRESENTATIVES_PATH,
+    ALBUM_DIR,
+    FACE_DATA_DIR,
+    MATCH_THRESHOLD_ALBUM,
+)
+from src.services.user.insightface_wrapper import face_engine
 
 
 RECENT_VECTOR_COUNT = 20  # 대표 벡터 계산 시 사용하는 벡터 개수
@@ -59,11 +66,14 @@ async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
         filename = generate_filename(file.filename)
         save_image(file, image, filename)
 
-        face_locations = face_recognition.face_locations(image)
-        encodings = face_recognition.face_encodings(image, face_locations)
+        faces = face_engine.get_faces(image)
+        for face in faces:
+            embedding = face_engine.get_embedding(face)
+            bbox = list(map(int, face.bbox))  # x1, y1, x2, y2
+            top, right, bottom, left = bbox[1], bbox[2], bbox[3], bbox[0]
+            loc = [top, right, bottom, left]
 
-        for loc, encoding in zip(face_locations, encodings):
-            person_id = find_matching_person_id(encoding, representatives)
+            person_id = find_matching_person_id(embedding, representatives)
 
             if person_id in override_map:
                 original = person_id
@@ -78,11 +88,11 @@ async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
             metadata[face_id] = {
                 "file_name": filename,
                 "location": loc,
-                "encoding": encoding.tolist(),
+                "encoding": embedding.tolist(),
                 "person_id": person_id,
             }
 
-            update_representative(person_id, encoding, representatives)
+            update_representative(person_id, embedding, representatives)
 
             results.append(
                 {
@@ -99,10 +109,10 @@ async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
 
 
 def find_matching_person_id(
-    new_encoding: np.ndarray, reps: dict, threshold: float = 0.12
+    new_encoding: np.ndarray, reps: dict, threshold: float = MATCH_THRESHOLD_ALBUM
 ) -> str:
     best_match = None
-    best_dist = float("inf")
+    best_sim = -1
 
     for person_id, vec in reps.items():
         if person_id.endswith("_history"):
@@ -110,32 +120,32 @@ def find_matching_person_id(
 
         vec = np.array(vec, dtype=np.float32).flatten()
 
-        # ✅ 벡터 유효성 검사 추가
-        if vec.shape != (128,) or np.any(np.isnan(vec)) or np.any(np.isinf(vec)):
+        # 벡터 유효성 검사
+        if vec.shape != (512,) or np.any(np.isnan(vec)) or np.any(np.isinf(vec)):
             print(f"🚫 {person_id} 대표 벡터가 손상됨. 건너뜀.")
             continue
 
-        dist = cosine(new_encoding, vec)
+        sim = face_engine.cosine_similarity(new_encoding, vec)
 
-        # ✅ dist 값 유효성 검사
-        if np.isnan(dist) or np.isinf(dist):
+        # sim 값 유효성 검사
+        if np.isnan(sim) or np.isinf(sim):
             print(f"🚫 유사도 계산 결과가 유효하지 않음. 건너뜀.")
             continue
 
-        print(f"🧠 비교 대상 {person_id} 벡터, 거리: {dist:.4f}")
+        print(f"🧠 비교 대상 {person_id}와 유사도: {sim:.4f}")
 
-        if dist < best_dist:
-            best_dist = dist
+        if sim > best_sim:
+            best_sim = sim
             best_match = person_id
 
     print(
-        f"📏 최종 거리: {best_dist:.4f}, 매칭 대상: {best_match} → {'✅ 기존 인물' if best_dist < threshold else '🆕 새 인물'}"
+        f"📏 최종 유사도: {best_sim:.4f}, 매칭 대상: {best_match} → {'✅ 기존 인물' if best_sim >= threshold else '🆕 새 인물'}"
     )
 
-    if best_dist < threshold:
+    if best_sim >= threshold:
         return best_match
     else:
-        print(f"⚠️ 새 사람 생성됨: 거리 {best_dist:.4f} > threshold {threshold}")
+        print(f"⚠️ 새로운 인물 생성됨 (유사도 {best_sim:.4f} < {threshold})")
         return get_new_person_id(reps)
 
 
@@ -158,7 +168,7 @@ def update_representative(person_id: str, new_encoding: np.ndarray, reps: dict):
 def get_medoid_vector(encoding_list: List[List[float]]) -> List[float]:
     if not encoding_list:
         print("⚠️ encoding_list 비어 있음. 빈 벡터 반환.")
-        return [0.0] * 128  # fallback
+        return [0.0] * 512
 
     enc_np = np.array(encoding_list)
 

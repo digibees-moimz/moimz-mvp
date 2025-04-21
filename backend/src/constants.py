@@ -21,3 +21,7 @@ TEMP_ENCODING_PATH = os.path.join(ALBUM_DIR, "temp_encodings.json")
 IMAGE_HASH_PATH = os.path.join(ALBUM_DIR, "image_hashes.json")
 
 RECENT_VECTOR_COUNT = 10
+
+# threshold 값
+MATCH_THRESHOLD_ALBUM = 0.45
+MATCH_THRESHOLD_ATTENDANCE = 0.43

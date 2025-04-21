@@ -6,6 +6,7 @@ from fastapi import UploadFile
 
 from src.services.user.storage import face_db
 from src.services.user.insightface_wrapper import face_engine
+from src.constants import MATCH_THRESHOLD_ATTENDANCE
 
 
 # 출석체크 확인
@@ -71,7 +72,7 @@ async def run_attendance_check(file: UploadFile):
     attendance_results = []  # 최종 출석 결과 저장
 
     for match in all_matches:
-        if match["similarity"] < 0.4:
+        if match["similarity"] < MATCH_THRESHOLD_ATTENDANCE:
             break  # 정렬되었기 때문에 유사도가 기준값을 넘어가면 더이상 확인할 필요 없음
 
         if match["user_id"] in matched_users:
