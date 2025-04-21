@@ -10,6 +10,7 @@ FRAME_IMAGE_DIR = os.path.join("src", "data", "frames")
 AUG_IMAGE_DIR = os.path.join("src", "data", "augmented")
 
 # 인물별 앨범
+MIN_FACE_COUNT = 5
 ALBUM_DIR = os.path.join(BASE_DIR, "src", "data", "album")
 os.makedirs(ALBUM_DIR, exist_ok=True)
 

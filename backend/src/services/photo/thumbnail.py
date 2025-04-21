@@ -34,6 +34,10 @@ def get_thumbnail_map() -> Dict[str, Dict]:
         thumbnail_face = None
 
         for face in all_faces:
+            # 작은 얼굴 제외
+            if face.get("too_small"):
+                continue
+
             if (
                 face.get("person_id") != person_id
                 and face.get("predicted_person") != person_id

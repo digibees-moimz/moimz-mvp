@@ -5,10 +5,9 @@ from typing import List
 from pathlib import Path
 from fastapi.responses import FileResponse
 
-
 from src.utils.file_io import load_json, save_json
 from src.services.photo.clustering import process_and_classify_faces
-from src.constants import METADATA_PATH, ALBUM_DIR
+from src.constants import METADATA_PATH, ALBUM_DIR, MIN_FACE_COUNT
 
 router = APIRouter()
 
@@ -25,7 +24,10 @@ def list_albums():
     metadata = load_json(METADATA_PATH, {})
     albums = {}
 
+    # too_small 제외하고 count
     for face in metadata.values():
+        if face.get("too_small"):  # 작아서 제외된 얼굴
+            continue
         person_id = face.get("override") or face.get("person_id", "unknown")
         albums.setdefault(person_id, []).append(face)
 
@@ -49,6 +51,10 @@ def list_albums():
 
     # 인물/미분류 앨범
     for person_id, faces in albums.items():
+        # 너무 적으면 앨범 생성 안함
+        if len(faces) < MIN_FACE_COUNT:
+            continue
+
         album_type = "unknown" if person_id == "unknown" else "person"
         thumbnail_face_id = find_face_id(metadata, faces[0])
 
@@ -128,9 +134,6 @@ def get_face_thumbnail(face_id: str):
     cv2.imwrite(str(thumb_file), cropped)
 
     return FileResponse(thumb_file)
-
-
-from fastapi.responses import FileResponse
 
 
 @router.get("/images/{file_name}")

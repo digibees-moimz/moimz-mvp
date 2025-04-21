@@ -24,6 +24,11 @@ from src.services.user.insightface_wrapper import face_engine
 RECENT_VECTOR_COUNT = 20  # 대표 벡터 계산 시 사용하는 벡터 개수
 
 
+def is_face_large_enough(bbox, min_width=60, min_height=60):
+    x1, y1, x2, y2 = bbox
+    return (x2 - x1) >= min_width and (y2 - y1) >= min_height
+
+
 def generate_filename(original_filename: str) -> str:
     ext = os.path.splitext(original_filename)[-1]
     uid = uuid.uuid4().hex[:8]
@@ -70,6 +75,9 @@ async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
         for face in faces:
             embedding = face_engine.get_embedding(face)
             bbox = list(map(int, face.bbox))  # x1, y1, x2, y2
+
+            is_large = is_face_large_enough(bbox)
+
             top, right, bottom, left = bbox[1], bbox[2], bbox[3], bbox[0]
             loc = [top, right, bottom, left]
 
@@ -90,6 +98,7 @@ async def process_and_classify_faces(files: List[UploadFile]) -> List[dict]:
                 "location": loc,
                 "encoding": embedding.tolist(),
                 "person_id": person_id,
+                "too_small": not is_large,
             }
 
             update_representative(person_id, embedding, representatives)
