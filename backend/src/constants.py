@@ -6,6 +6,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FACE_DATA_DIR = os.path.join(BASE_DIR, "src", "data", "users")
 os.makedirs(FACE_DATA_DIR, exist_ok=True)
 
+FRAME_IMAGE_DIR = os.path.join("src", "data", "frames")
+AUG_IMAGE_DIR = os.path.join("src", "data", "augmented")
+
 # 인물별 앨범
 ALBUM_DIR = os.path.join(BASE_DIR, "src", "data", "album")
 os.makedirs(ALBUM_DIR, exist_ok=True)

@@ -5,19 +5,20 @@ from typing import List
 import cv2
 import face_recognition
 import numpy as np
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException, status
 
 from src.services.user.clustering import (
     update_user_clusters,
     visualize_clusters,
 )
+from src.services.user.register import extract_frames_from_video, augment_image
 from src.services.user.storage import face_db
-from src.constants import FACE_DATA_DIR
+from src.constants import FACE_DATA_DIR, FRAME_IMAGE_DIR, AUG_IMAGE_DIR
 
 router = APIRouter()
 
 
-# 얼굴 등록 API
+# 사진 기반 얼굴 등록 API
 @router.post("/register/{user_id}")
 async def register_faces(user_id: int, files: List[UploadFile] = File(...)):
 
@@ -104,3 +105,85 @@ async def register_faces(user_id: int, files: List[UploadFile] = File(...)):
 @router.get("/visualize_clusters/{user_id}")
 async def get_cluster_visualization(user_id: int):
     return visualize_clusters(face_db, user_id)
+
+
+# 영상 기반 얼굴 등록 API
+@router.post("/register_video/{user_id}")
+async def register_faces_from_video(user_id: int, file: UploadFile = File(...)):
+    # 파일 확장자 확인
+    allowed_exts = (".mp4", ".webm", ".mov", ".avi", ".mkv")
+    if not file.filename.lower().endswith(allowed_exts):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="지원되지 않는 파일 형식입니다. 영상(mp4, webm 등)만 업로드 가능합니다.",
+        )
+
+    # MIME 타입 확인
+    if not file.content_type.startswith("video/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="지원되지 않는 파일 형식입니다. video 타입만 업로드 가능합니다.",
+        )
+
+    video_bytes = await file.read()
+
+    # 프레임 추출
+    frames = extract_frames_from_video(video_bytes)
+
+    encodings_list = []
+    skipped = 0
+
+    # 저장 경로 준비
+    frame_dir = os.path.join(FRAME_IMAGE_DIR, str(user_id))
+    aug_dir = os.path.join(AUG_IMAGE_DIR, str(user_id))
+    os.makedirs(frame_dir, exist_ok=True)
+    os.makedirs(aug_dir, exist_ok=True)
+
+    # 데이터 증강
+    for i, frame in enumerate(frames):
+        # 프레임 저장
+        frame_path = os.path.join(frame_dir, f"frame_{i:03d}.jpg")
+        cv2.imwrite(frame_path, frame)
+
+        augmented_images = augment_image(frame)
+
+        for j, img in enumerate(augmented_images):
+            # 증강 이미지 저장
+            aug_path = os.path.join(aug_dir, f"frame{i}_aug{j}.jpg")
+            cv2.imwrite(aug_path, img)
+
+            # 얼굴 인코딩
+            locations = face_recognition.face_locations(img)
+            encodings = face_recognition.face_encodings(
+                img, known_face_locations=locations
+            )
+
+            if len(encodings) == 1:
+                encodings_list.append(encodings[0])
+            else:
+                skipped += 1
+
+    if not encodings_list:
+        return {"error": "등록 가능한 얼굴이 없습니다.", "skipped": skipped}
+
+    # 기존 사용자 얼굴 데이터와 병합
+    if user_id in face_db:
+        if isinstance(face_db[user_id], list):
+            face_db[user_id] = {"raw": face_db[user_id]}
+        face_db[user_id]["raw"].extend(encodings_list)
+    else:
+        face_db[user_id] = {"raw": encodings_list}
+
+    # KMeans 클러스터링 수행
+    cluster_msg = update_user_clusters(face_db, user_id)
+
+    # 저장
+    save_path = os.path.join(FACE_DATA_DIR, f"face_{user_id}.pkl")
+    with open(save_path, "wb") as f:
+        pickle.dump(face_db[user_id], f)
+
+    return {
+        "message": f"✅ 사용자 {user_id} 얼굴 {len(encodings_list)}개 등록 완료!",
+        "skipped": skipped,
+        "cluster_msg": cluster_msg,
+    }
