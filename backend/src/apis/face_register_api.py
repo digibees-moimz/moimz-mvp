@@ -3,7 +3,6 @@ import pickle
 from typing import List
 
 import cv2
-import face_recognition
 import numpy as np
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 
@@ -157,14 +156,11 @@ async def register_faces_from_video(user_id: int, file: UploadFile = File(...)):
             aug_path = os.path.join(aug_dir, f"frame{i}_aug{j}.jpg")
             cv2.imwrite(aug_path, img)
 
-            # 얼굴 인코딩
-            locations = face_recognition.face_locations(img)
-            encodings = face_recognition.face_encodings(
-                img, known_face_locations=locations
-            )
-
-            if len(encodings) == 1:
-                encodings_list.append(encodings[0])
+            # 얼굴 감지 및 인코딩
+            faces = face_engine.get_faces(img)
+            if len(faces) == 1:
+                embedding = face_engine.get_embedding(faces[0])
+                encodings_list.append(embedding)
             else:
                 skipped += 1
 
@@ -187,8 +183,24 @@ async def register_faces_from_video(user_id: int, file: UploadFile = File(...)):
     with open(save_path, "wb") as f:
         pickle.dump(face_db[user_id], f)
 
+    # 기존 유저와의 유사도 비교
+    new_encoding = encodings_list[0]
+    similarity_results = []
+    for existing_user_id, data in face_db.items():
+        raw_vectors = data.get("raw", [])
+        if raw_vectors:
+            sims = [
+                float(face_engine.cosine_similarity(vec, new_encoding))
+                for vec in raw_vectors
+            ]
+            max_sim = max(sims)
+            similarity_results.append(
+                {"user_id": existing_user_id, "cosine_similarity": max_sim}
+            )
+
     return {
         "message": f"✅ 사용자 {user_id} 얼굴 {len(encodings_list)}개 등록 완료!",
         "skipped": skipped,
         "cluster_msg": cluster_msg,
+        "similarity_results": similarity_results,  # 기존 얼굴과 유사도 출력
     }
