@@ -3,6 +3,8 @@ uvicorn
 requests
 python-dotenv
 face_recognition
+insightface
+onnxruntime
 dlib
 numpy
 opencv-python
