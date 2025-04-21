@@ -1,10 +1,9 @@
-import os
 from typing import Dict
 
 import numpy as np
-from scipy.spatial.distance import cosine
 
 from src.utils.file_io import load_json
+from src.services.user.insightface_wrapper import face_engine
 from src.constants import (
     METADATA_PATH,
     REPRESENTATIVES_PATH,
@@ -31,7 +30,7 @@ def get_thumbnail_map() -> Dict[str, Dict]:
     thumbnail_map = {}
 
     for person_id, rep_vec in reps.items():
-        min_distance = float("inf")
+        best_sim = -1
         thumbnail_face = None
 
         for face in all_faces:
@@ -41,11 +40,11 @@ def get_thumbnail_map() -> Dict[str, Dict]:
             ):
                 continue
 
-            face_vec = np.array(face["encoding"])
-            distance = cosine(rep_vec, face_vec)
+            face_vec = np.array(face["encoding"], dtype=np.float32)
+            sim = face_engine.cosine_similarity(rep_vec, face_vec)
 
-            if distance < min_distance:
-                min_distance = distance
+            if sim > best_sim:
+                best_sim = sim
                 thumbnail_face = {
                     "file_name": face["file_name"],
                     "location": face["location"],
@@ -56,5 +55,3 @@ def get_thumbnail_map() -> Dict[str, Dict]:
             thumbnail_map[person_id] = thumbnail_face
 
     return thumbnail_map
-
-
